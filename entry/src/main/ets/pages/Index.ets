@@ -449,11 +449,7 @@ struct Index {
 
       if (!this.hasData && !this.importing) {
         EmptyView({
-          tip: this.showSwitchHint ? $r('app.string.assignee_empty_tip') : $r('app.string.empty_import_tip'),
-          actionText: $r('app.string.menu_import'),
-          onAction: (): void => {
-            this.onImport();
-          }
+          tip: this.showSwitchHint ? $r('app.string.assignee_empty_tip') : $r('app.string.empty_import_tip')
         })
       } else {
         List() {
