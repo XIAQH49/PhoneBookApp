@@ -1,0 +1,132 @@
+{
+  "string": [
+    {
+      "name": "module_desc",
+      "value": "内网外呼名单工具"
+    },
+    {
+      "name": "EntryAbility_desc",
+      "value": "外呼名单：导入-筛选-拨打-标记-导出"
+    },
+    {
+      "name": "EntryAbility_label",
+      "value": "外呼名单"
+    },
+    {
+      "name": "menu_import",
+      "value": "导入名单"
+    },
+    {
+      "name": "menu_export",
+      "value": "导出结果"
+    },
+    {
+      "name": "menu_settings",
+      "value": "设置"
+    },
+    {
+      "name": "filter_all",
+      "value": "全部"
+    },
+    {
+      "name": "filter_uncalled",
+      "value": "未打"
+    },
+    {
+      "name": "filter_called",
+      "value": "已打"
+    },
+    {
+      "name": "search_hint",
+      "value": "搜索姓名/工号/手机"
+    },
+    {
+      "name": "unassigned",
+      "value": "未分配"
+    },
+    {
+      "name": "unassigned_tip",
+      "value": "以下名单责任人为空，请联系内网修正"
+    },
+    {
+      "name": "empty_import_tip",
+      "value": "尚未导入名单，点击下方按钮开始"
+    },
+    {
+      "name": "assignee_empty_tip",
+      "value": "当前责任人名下暂无数据，请点击右上角切换责任人"
+    },
+    {
+      "name": "call",
+      "value": "拨打"
+    },
+    {
+      "name": "cancel",
+      "value": "取消"
+    },
+    {
+      "name": "confirm",
+      "value": "确认"
+    },
+    {
+      "name": "copy_number",
+      "value": "复制号码"
+    },
+    {
+      "name": "no_valid_number",
+      "value": "未识别到有效号码，可长按复制原文"
+    },
+    {
+      "name": "dial_confirm_title",
+      "value": "确认拨打"
+    },
+    {
+      "name": "dont_show_again",
+      "value": "不再提示"
+    },
+    {
+      "name": "permission_denied_tip",
+      "value": "未找到系统拨号应用，号码已复制，可手动粘贴拨打"
+    },
+    {
+      "name": "assignee_picker_title",
+      "value": "选择责任人"
+    },
+    {
+      "name": "export_scope_mine",
+      "value": "当前责任人+未分配"
+    },
+    {
+      "name": "export_scope_all",
+      "value": "全表"
+    },
+    {
+      "name": "settings_title",
+      "value": "设置"
+    },
+    {
+      "name": "confirm_before_call",
+      "value": "拨号前确认"
+    },
+    {
+      "name": "export_scope",
+      "value": "导出范围"
+    },
+    {
+      "name": "multiple_numbers",
+      "value": "手机 ×%d"
+    },
+    {
+      "name": "file_removed_tag",
+      "value": "已从新文件移除"
+    },
+    {
+      "name": "import_failed",
+      "value": "导入失败，请检查文件格式"
+    },
+    {
+      "name": "strip_country_call",
+      "value": "拨号前去除+86（兼容）"
+    }
+  ]
+}
