@@ -45,10 +45,6 @@
       "value": "未分配"
     },
     {
-      "name": "unassigned_tip",
-      "value": "以下名单责任人为空，请联系内网修正"
-    },
-    {
       "name": "empty_import_tip",
       "value": "尚未导入名单，点击下方按钮开始"
     },

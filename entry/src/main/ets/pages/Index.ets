@@ -439,14 +439,6 @@ struct Index {
         }
       })
 
-      if (this.vm.assignee === Constants.UNASSIGNED) {
-        Text($r('app.string.unassigned_tip'))
-          .fontSize(12)
-          .fontColor('#E84026')
-          .width('100%')
-          .padding({ left: 16, right: 16, top: 4, bottom: 4 })
-      }
-
       if (!this.hasData && !this.importing) {
         EmptyView({
           tip: this.showSwitchHint ? $r('app.string.assignee_empty_tip') : $r('app.string.empty_import_tip')
