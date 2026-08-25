@@ -16,6 +16,7 @@ export class Constants {
   static readonly CONFIG_CONFIRM_BEFORE_CALL: string = 'confirm_before_call';
   static readonly CONFIG_EXPORT_SCOPE: string = 'export_scope';
   static readonly CONFIG_CALL_STRIP_COUNTRY: string = 'call_strip_country_code';
+  static readonly CONFIG_BUILTIN_LAST_HASH: string = 'builtin_last_hash';
 
   // 导出范围
   static readonly EXPORT_SCOPE_MINE: string = 'mine';

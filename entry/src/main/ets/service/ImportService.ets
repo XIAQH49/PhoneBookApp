@@ -59,15 +59,26 @@ export class ImportService {
   static async importFromUri(uri: string,
     onProgress?: (p: ProgressInfo) => void): Promise<ImportResult> {
     try {
-      if (!DbHelper.isReady()) {
-        return { success: false, message: '数据库未就绪，请稍后重试', total: 0 };
-      }
       if (onProgress !== undefined) {
         onProgress({ percent: 5, stage: '读取文件' });
       }
       const bytes: Uint8Array = ImportService.readUri(uri);
       const fileName: string = ImportService.extractFileName(uri);
-      const lower: string = uri.toLowerCase();
+      return await ImportService.importFromBytes(bytes, fileName, onProgress);
+    } catch (e) {
+      Logger.error(TAG, 'importFromUri failed: ' + (e as Error).message);
+      return { success: false, message: '导入失败：' + (e as Error).message, total: 0 };
+    }
+  }
+
+  /** 从字节导入（内置文件/内存数据共用核心：解码 → 解析 → 合并入库） */
+  static async importFromBytes(bytes: Uint8Array, fileName: string,
+    onProgress?: (p: ProgressInfo) => void): Promise<ImportResult> {
+    try {
+      if (!DbHelper.isReady()) {
+        return { success: false, message: '数据库未就绪，请稍后重试', total: 0 };
+      }
+      const lower: string = fileName.toLowerCase();
       let sheet: ParsedSheet;
       let encoding: string;
       let format: string;
@@ -107,7 +118,7 @@ export class ImportService {
       if (onProgress !== undefined) {
         onProgress({ percent: 100, stage: '完成' });
       }
-      Logger.info(TAG, `import ok: ${prepared.rows.length} rows, encoding=${encoding}`);
+      Logger.info(TAG, `import ok: ${prepared.rows.length} rows, file=${fileName}, encoding=${encoding}`);
       return { success: true, message: '导入成功', total: prepared.rows.length };
     } catch (e) {
       Logger.error(TAG, 'import failed: ' + (e as Error).message);

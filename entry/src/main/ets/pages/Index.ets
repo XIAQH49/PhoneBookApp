@@ -6,6 +6,7 @@ import { Constants } from '../common/Constants';
 import { ContextUtil } from '../common/ContextUtil';
 import { ImportService } from '../service/ImportService';
 import type { ImportResult, ProgressInfo } from '../service/ImportService';
+import { BuiltinListService } from '../service/BuiltinListService';
 import { ExportService } from '../service/ExportService';
 import type { ExportResult } from '../service/ExportService';
 import { CallService } from '../service/CallService';
@@ -51,6 +52,7 @@ struct Index {
   private searchTimer: number = -1;
   private confirmController: CustomDialogController | undefined = undefined;
   private initRetry: number = 0;
+  private builtinChecked: boolean = false;
 
   aboutToAppear(): void {
     this.initPage();
@@ -86,6 +88,11 @@ struct Index {
       await DbHelper.ready();
       await this.vm.init();
       await this.syncAll();
+      // v0.5：内置名单变化检测（每次启动仅一次，内容哈希变化才导入，已打状态保留）
+      if (!this.builtinChecked) {
+        this.builtinChecked = true;
+        this.checkBuiltin();
+      }
     } catch (e) {
       this.initRetry++;
       if (this.initRetry <= 3) {
@@ -94,6 +101,38 @@ struct Index {
           this.initPage();
         }, 500);
       }
+    }
+  }
+
+  /** 内置名单自动检测/手动导入共用 */
+  async checkBuiltin(manual: boolean = false): Promise<void> {
+    const ctx: common.UIAbilityContext | undefined = ContextUtil.getAbilityContext(this.getUIContext());
+    if (ctx === undefined) {
+      if (manual) {
+        this.uiToast('无法获取应用上下文');
+      }
+      return;
+    }
+    if (manual) {
+      const name: string = await BuiltinListService.findBuiltin(ctx);
+      if (name === '') {
+        this.uiToast('未找到内置名单：请将文件命名为 名单.xlsx（或 名单.csv）放入 rawfile 目录后重新构建安装');
+        return;
+      }
+    }
+    const r: ImportResult | undefined = await BuiltinListService.importIfChanged(ctx);
+    if (r === undefined) {
+      if (manual) {
+        this.uiToast('内置名单无变化，无需导入');
+      }
+      return;
+    }
+    if (r.success) {
+      this.uiToast(manual ? '已导入内置名单' : '内置名单已更新并导入');
+      await this.vm.reloadAssignee();
+      await this.syncAll();
+    } else {
+      this.uiToast(r.message);
     }
   }
 
@@ -420,12 +459,21 @@ struct Index {
 
       Row() {
         Button(this.importing ? this.importStage : '导入名单')
+          .fontSize(14)
           .layoutWeight(1)
           .enabled(!this.importing)
           .onClick(() => {
             this.onImport();
           })
+        Button('内置名单')
+          .fontSize(14)
+          .layoutWeight(1)
+          .margin({ left: 8 })
+          .onClick(() => {
+            this.checkBuiltin(true);
+          })
         Button(this.exporting ? '导出中…' : '导出结果')
+          .fontSize(14)
           .layoutWeight(1)
           .margin({ left: 8 })
           .enabled(!this.exporting)

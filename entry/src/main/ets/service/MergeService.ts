@@ -63,6 +63,16 @@ export class MergeService {
     return (h >>> 0).toString(16);
   }
 
+  /** 字节哈希（FNV-1a，内置文件变更检测用，非加密用途） */
+  static hashBytes(bytes: Uint8Array): string {
+    let h: number = 2166136261;
+    for (let i: number = 0; i < bytes.length; i++) {
+      h = h ^ bytes[i];
+      h = Math.imul(h, 16777619);
+    }
+    return (h >>> 0).toString(16);
+  }
+
   /**
    * 计算合并计划。
    * @param newRows 新文件解析出的全部行

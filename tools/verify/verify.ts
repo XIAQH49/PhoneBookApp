@@ -5,6 +5,8 @@
  * 说明：被测文件必须为纯 TS（无 ArkTS 专属语法、无 Kit 依赖）。
  */
 import assert from 'node:assert';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 import { NumberParseService } from '../../entry/src/main/ets/service/NumberParseService.ts';
 import { MergeService, CalledValue } from '../../entry/src/main/ets/service/MergeService.ts';
 import type { MergeRowData, LocalRowSnapshot } from '../../entry/src/main/ets/service/MergeService.ts';
@@ -284,6 +286,38 @@ check('xlsx_multi_rows_and_empty_pad', () => {
   const parsed: ParsedSheet = XlsxService.parse(XlsxService.write(table));
   assert.strictEqual(parsed.rows.length, 2);
   assert.deepStrictEqual(parsed.rows[1], ['x', '', '']);
+});
+
+console.log('[verify] MergeService.hashBytes (v0.5 内置文件变更检测)');
+check('hash_bytes_stable_and_sensitive', () => {
+  const a: Uint8Array = new Uint8Array([1, 2, 3, 4]);
+  const b: Uint8Array = new Uint8Array([1, 2, 3, 4]);
+  const c: Uint8Array = new Uint8Array([1, 2, 3, 5]);
+  const empty: Uint8Array = new Uint8Array([]);
+  assert.strictEqual(MergeService.hashBytes(a), MergeService.hashBytes(b));
+  assert.notStrictEqual(MergeService.hashBytes(a), MergeService.hashBytes(c));
+  assert.strictEqual(MergeService.hashBytes(empty), '811c9dc5');
+});
+
+console.log('[verify] v0.5 内置名单链路（哈希检测 → 解析 → 合并保留已打）');
+check('builtin_flow_preserves_called_state', () => {
+  // 与真机 rawfile 同一解析链路：读取 xlsx 字节 → 哈希 → XlsxService → ImportLogic → MergeService
+  const bytes: Uint8Array = new Uint8Array(
+    fs.readFileSync(path.resolve('samples/名单样例_2000行.xlsx')));
+  const hash1: string = MergeService.hashBytes(bytes);
+  assert.strictEqual(hash1, MergeService.hashBytes(bytes), '同内容哈希稳定');
+  const sheet: ParsedSheet = XlsxService.parse(bytes);
+  const prepared = ImportLogic.prepare(sheet);
+  assert.strictEqual(prepared.rows.length, 2000);
+  // 模拟"本地已打 + 内置文件未打"：合并结果必须保持已打（状态取"或"，R-1）
+  const forcedLocal: LocalRowSnapshot[] = [
+    { id: 1, rowKey: prepared.rows[0].rowKey, called: true }
+  ];
+  const plan = MergeService.computePlan([prepared.rows[0]], forcedLocal);
+  assert.strictEqual(plan.updates.length, 1);
+  assert.strictEqual(plan.updates[0].calledMerged, true, '内置更新不丢已打状态');
+  // 未变化文件：哈希一致（服务层据此跳过导入）
+  assert.strictEqual(hash1, MergeService.hashBytes(bytes));
 });
 
 console.log(`[verify] ALL ${passed} CHECKS PASSED`);
