@@ -125,6 +125,10 @@
       "value": "导入失败，请检查文件格式"
     },
     {
+      "name": "clear_all_data",
+      "value": "一键清除名单"
+    },
+    {
       "name": "strip_country_call",
       "value": "拨号前去除+86（兼容）"
     }

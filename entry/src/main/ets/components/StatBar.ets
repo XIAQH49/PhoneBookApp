@@ -1,11 +1,13 @@
 /**
- * 进度统计条（FR-4）：总/已打/未打 + 完成百分比。
- * total/called 用 @Prop 接收父状态，随父组件重建同步更新。
+ * 进度统计条（FR-4）：当前责任人 总/已打/未打 + 完成百分比；附全部责任人总计行。
+ * 全部参数用 @Prop 接收父状态，随父组件重建同步更新。
  */
 @Component
 export struct StatBar {
   @Prop total: number;
   @Prop called: number;
+  @Prop allTotal: number;
+  @Prop allCalled: number;
 
   build() {
     Column() {
@@ -28,6 +30,11 @@ export struct StatBar {
       Text(this.total > 0 ? `完成 ${Math.round(this.called * 100 / this.total)}%` : '完成 0%')
         .fontSize(11)
         .fontColor('#999999')
+
+      Text(`全部责任人：共 ${this.allTotal} 条 · 已打 ${this.allCalled} 条`)
+        .fontSize(11)
+        .fontColor('#999999')
+        .margin({ top: 2 })
     }
     .padding({ left: 16, right: 16, top: 8, bottom: 8 })
   }

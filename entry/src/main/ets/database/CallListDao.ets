@@ -124,6 +124,24 @@ export class CallListDao {
     return result;
   }
 
+  /** 全量进度统计（全部责任人，FR-4 总计行） */
+  static async countAllByStatus(): Promise<CountResult> {
+    const store: relationalStore.RdbStore = DbHelper.getStore();
+    const rs: relationalStore.ResultSet = await store.querySql(
+      'SELECT called, COUNT(*) AS cnt FROM call_list WHERE in_file = 1 GROUP BY called', []);
+    const result: CountResult = { total: 0, called: 0 };
+    while (rs.goToNextRow()) {
+      const called: number = rs.getLong(rs.getColumnIndex('called'));
+      const cnt: number = rs.getLong(rs.getColumnIndex('cnt'));
+      if (called === 1) {
+        result.called = cnt;
+      }
+      result.total += cnt;
+    }
+    rs.close();
+    return result;
+  }
+
   /** 责任人去重列表（FR-3） */
   static async getAssigneeList(): Promise<string[]> {
     const store: relationalStore.RdbStore = DbHelper.getStore();

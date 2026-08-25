@@ -34,6 +34,8 @@ struct Index {
   @State assigneeName: string = '';
   @State statTotal: number = 0;
   @State statCalled: number = 0;
+  @State allTotal: number = 0;
+  @State allCalled: number = 0;
   @State hasData: boolean = false;
   @State showSwitchHint: boolean = false;
   @State searchText: string = '';
@@ -141,11 +143,15 @@ struct Index {
     const r: CountResult = await this.vm.refreshStats();
     this.statTotal = r.total;
     this.statCalled = r.called;
+    // 全部责任人总计（FR-4 总计行）
+    const all: CountResult = await CallListDao.countAllByStatus();
+    this.allTotal = all.total;
+    this.allCalled = all.called;
     this.hasData = this.vm.totalCount() > 0;
     if (!this.hasData) {
       // 区分"尚未导入"与"当前责任人无数据"两种空态
-      const all: number = await CallListDao.countAllActive();
-      this.showSwitchHint = all > 0;
+      const allRows: number = await CallListDao.countAllActive();
+      this.showSwitchHint = allRows > 0;
     } else {
       this.showSwitchHint = false;
     }
@@ -412,7 +418,12 @@ struct Index {
       .width('100%')
       .padding({ left: 16, right: 16, top: 12, bottom: 4 })
 
-      StatBar({ total: this.statTotal, called: this.statCalled })
+      StatBar({
+        total: this.statTotal,
+        called: this.statCalled,
+        allTotal: this.allTotal,
+        allCalled: this.allCalled
+      })
 
       TextInput({ placeholder: $r('app.string.search_hint'), text: this.searchText })
         .height(40)

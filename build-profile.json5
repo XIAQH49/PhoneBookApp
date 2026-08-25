@@ -2,7 +2,21 @@
   "app": {
     // 签名配置为个人本地信息，已脱敏；在 DevEco Studio 中首次 Run 时自动生成
     // （File > Project Structure > Signing Configs > Automatically generate signature）。
-    "signingConfigs": [],
+    "signingConfigs": [
+      {
+        "name": "default",
+        "type": "HarmonyOS",
+        "material": {
+          "certpath": "C:\\Users\\75400\\.ohos\\config\\default_PhoneBookApp_-GLwSHJzhdPJtTOL-wr5_gPh0pdHtulOg2p_kPH5EjE=.cer",
+          "keyAlias": "debugKey",
+          "keyPassword": "0000001B599135E4F3E347EB32037CB903D90C7D2C41B4F8B32F18B5DB7843CC049CA9BC43163DFAF481BD",
+          "profile": "C:\\Users\\75400\\.ohos\\config\\default_PhoneBookApp_-GLwSHJzhdPJtTOL-wr5_gPh0pdHtulOg2p_kPH5EjE=.p7b",
+          "signAlg": "SHA256withECDSA",
+          "storeFile": "C:\\Users\\75400\\.ohos\\config\\default_PhoneBookApp_-GLwSHJzhdPJtTOL-wr5_gPh0pdHtulOg2p_kPH5EjE=.p12",
+          "storePassword": "0000001B74DD39694171FE108B4F3F78A93E7F50D35B9C36D095D274A4341C2ABC583934FD33E49E034DDF"
+        }
+      }
+    ],
     "products": [
       {
         "name": "default",

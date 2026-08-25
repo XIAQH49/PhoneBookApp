@@ -4,6 +4,7 @@ import { MetaDao } from '../database/MetaDao';
 import { ConfigDao } from '../database/ConfigDao';
 import { ImportMeta } from '../model/ImportMeta';
 import { Constants } from '../common/Constants';
+import { DataResetService } from '../database/DataResetService';
 
 /**
  * 设置页（FR-5 / R-4）：拨号前确认开关、导出范围、数据信息。
@@ -115,8 +116,64 @@ struct Settings {
         .width('100%')
         .padding({ left: 16, right: 16, top: 24 })
         .textAlign(TextAlign.Start)
+
+      Button($r('app.string.clear_all_data'))
+        .fontSize(15)
+        .fontColor('#E84026')
+        .backgroundColor('#FDECEA')
+        .width('100%')
+        .margin({ left: 16, right: 16, top: 24 })
+        .onClick(() => {
+          this.onClearAll();
+        })
     }
     .width('100%')
     .height('100%')
+  }
+
+  /** 一键清除全部名单（带确认） */
+  async onClearAll(): Promise<void> {
+    let index: number = -1;
+    try {
+      const res = await this.getUIContext().getPromptAction().showDialog({
+        title: '清除全部名单？',
+        message: '将删除所有导入数据与拨打状态，此操作不可恢复',
+        buttons: [
+          { text: '取消', color: '#666666' },
+          { text: '清除', color: '#E84026' }
+        ]
+      });
+      index = res.index;
+    } catch (e) {
+      index = -1;
+    }
+    if (index !== 1) {
+      return;
+    }
+    try {
+      await DataResetService.clearAllData();
+      await this.reloadDataInfo();
+      this.uiToast('名单已清除');
+    } catch (e) {
+      this.uiToast('清除失败：' + (e as Error).message);
+    }
+  }
+
+  async reloadDataInfo(): Promise<void> {
+    const total: number = await CallListDao.countAllActive();
+    const meta: ImportMeta | undefined = await MetaDao.getActive();
+    let info: string = `数据 ${total} 条`;
+    if (meta !== undefined) {
+      info += `，最近导入：${meta.fileName}`;
+    }
+    this.dataInfo = info;
+  }
+
+  private uiToast(message: string): void {
+    try {
+      this.getUIContext().getPromptAction().showToast({ message: message });
+    } catch (e) {
+      // 提示失败忽略
+    }
   }
 }
