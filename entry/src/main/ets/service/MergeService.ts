@@ -74,39 +74,45 @@ export class MergeService {
   }
 
   /**
-   * 计算合并计划。
+   * 计算合并计划（v0.5.3 修复丢行 bug）：
+   * - 新文件内同键的多条行**全部保留**（同工号/同姓名+手机的多任务行不再被去重丢弃）；
+   * - 本地同键行按队列顺序与新文件同键行一一匹配（多余本地行标记移除）；
+   * - 状态取"或"不变。
    * @param newRows 新文件解析出的全部行
    * @param localRows 本地当前生效数据集的行快照
    */
   static computePlan(newRows: MergeRowData[], localRows: LocalRowSnapshot[]): MergePlan {
-    const localMap: Map<string, LocalRowSnapshot> = new Map<string, LocalRowSnapshot>();
+    // 同键本地行可能有多条：按队列存储，与新文件同键行按序一一匹配
+    const localQueues: Map<string, LocalRowSnapshot[]> = new Map<string, LocalRowSnapshot[]>();
     for (const l of localRows) {
-      localMap.set(l.rowKey, l);
+      const q: LocalRowSnapshot[] | undefined = localQueues.get(l.rowKey);
+      if (q !== undefined) {
+        q.push(l);
+      } else {
+        const arr: LocalRowSnapshot[] = [l];
+        localQueues.set(l.rowKey, arr);
+      }
     }
     const plan: MergePlan = { inserts: [], updates: [], removedLocalIds: [] };
-    const seen: Set<string> = new Set<string>();
     for (const n of newRows) {
-      // 新文件内部行键去重（避免重复行二次插入）
-      if (seen.has(n.rowKey)) {
-        continue;
-      }
-      seen.add(n.rowKey);
-      const local: LocalRowSnapshot | undefined = localMap.get(n.rowKey);
-      if (local !== undefined) {
+      const q: LocalRowSnapshot[] | undefined = localQueues.get(n.rowKey);
+      if (q !== undefined && q.length > 0) {
+        const local: LocalRowSnapshot = q.shift() as LocalRowSnapshot;
         const update: MergeUpdate = {
           localId: local.id,
           data: n,
           calledMerged: local.called || n.calledFromFile
         };
         plan.updates.push(update);
-        localMap.delete(n.rowKey);
       } else {
         plan.inserts.push(n);
       }
     }
     // 剩余本地行：新文件中已消失
-    localMap.forEach((value: LocalRowSnapshot) => {
-      plan.removedLocalIds.push(value.id);
+    localQueues.forEach((value: LocalRowSnapshot[]) => {
+      for (const l of value) {
+        plan.removedLocalIds.push(l.id);
+      }
     });
     return plan;
   }

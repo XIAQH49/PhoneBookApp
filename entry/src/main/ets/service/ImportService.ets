@@ -134,6 +134,10 @@ export class ImportService {
       return { id: k.id, rowKey: k.rowKey, called: k.called };
     });
     const plan: MergePlan = MergeService.computePlan(prepared.rows, snapshots);
+    // 导入诊断日志（内网设备丢行排查用）：hilog 过滤 'ImportService' 即可见
+    Logger.info(TAG,
+      `merge stats: parsed=${prepared.rows.length}, skippedEmpty=${prepared.skippedEmpty}, ` +
+      `inserts=${plan.inserts.length}, updates=${plan.updates.length}, removed=${plan.removedLocalIds.length}`);
     await DbHelper.runInTransaction(async () => {
       const meta: ImportMeta = new ImportMeta();
       meta.fileName = fileName;

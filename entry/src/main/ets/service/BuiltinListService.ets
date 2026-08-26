@@ -37,9 +37,11 @@ export class BuiltinListService {
   /**
    * 内置文件变化即导入：
    * 无内置文件 → undefined；内容哈希与上次一致 → undefined；
-   * 有变化 → 解析合并导入，成功后记录哈希并返回结果。
+   * 有变化 → 解析合并导入，成功后记录哈希并返回结果；
+   * force=true 时跳过哈希检查强制重新合并导入（恢复旧版去重逻辑丢弃的重复键行，不丢已打状态）。
    */
-  static async importIfChanged(context: common.UIAbilityContext): Promise<ImportResult | undefined> {
+  static async importIfChanged(context: common.UIAbilityContext,
+    force: boolean = false): Promise<ImportResult | undefined> {
     const name: string = await BuiltinListService.findBuiltin(context);
     if (name === '') {
       return undefined;
@@ -48,7 +50,7 @@ export class BuiltinListService {
       const bytes: Uint8Array = await context.resourceManager.getRawFileContent(name);
       const hash: string = MergeService.hashBytes(bytes);
       const last: string = await ConfigDao.get(Constants.CONFIG_BUILTIN_LAST_HASH);
-      if (hash === last) {
+      if (!force && hash === last) {
         return undefined;
       }
       const result: ImportResult = await ImportService.importFromBytes(bytes, name);

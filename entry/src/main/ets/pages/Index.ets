@@ -125,7 +125,7 @@ struct Index {
     const r: ImportResult | undefined = await BuiltinListService.importIfChanged(ctx);
     if (r === undefined) {
       if (manual) {
-        this.uiToast('内置名单无变化，无需导入');
+        await this.askForceImport(ctx);
       }
       return;
     }
@@ -134,6 +134,35 @@ struct Index {
       await this.vm.reloadAssignee();
       await this.syncAll();
     } else {
+      this.uiToast(r.message);
+    }
+  }
+
+  /** 名单无变化时提供"强制重新导入"（恢复被旧版去重丢弃的重复行，不覆盖已打状态） */
+  async askForceImport(ctx: common.UIAbilityContext): Promise<void> {
+    let index: number = -1;
+    try {
+      const res = await this.getUIContext().getPromptAction().showDialog({
+        title: '内置名单无变化',
+        message: '可强制重新导入以恢复缺失名单（不会丢失已打状态），是否继续？',
+        buttons: [
+          { text: '取消', color: '#666666' },
+          { text: '强制导入', color: '#007DFF' }
+        ]
+      });
+      index = res.index;
+    } catch (e) {
+      index = -1;
+    }
+    if (index !== 1) {
+      return;
+    }
+    const r: ImportResult | undefined = await BuiltinListService.importIfChanged(ctx, true);
+    if (r !== undefined && r.success) {
+      this.uiToast('强制导入完成');
+      await this.vm.reloadAssignee();
+      await this.syncAll();
+    } else if (r !== undefined) {
       this.uiToast(r.message);
     }
   }

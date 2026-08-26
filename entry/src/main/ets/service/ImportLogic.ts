@@ -14,6 +14,8 @@ export interface ImportPrepareResult {
   allColumns: string[];
   rows: MergeRowData[];
   calledValueFormat: string;
+  /** 跳过的完全空行数（诊断用） */
+  skippedEmpty: number;
 }
 
 interface KnownColumnDef {
@@ -44,6 +46,7 @@ export class ImportLogic {
     const mapping: ColumnMapping = ImportLogic.matchColumns(headers);
     const calledValues: string[] = [];
     const rows: MergeRowData[] = [];
+    let skippedEmpty: number = 0;
     let rowNo: number = 2; // 表头为第 1 行
     for (const values of sheet.rows) {
       const raw: Record<string, string> = {};
@@ -55,6 +58,12 @@ export class ImportLogic {
       const phoneRaw: string = ImportLogic.cell(raw, mapping.phone);
       const assignee: string = ImportLogic.cell(raw, mapping.assignee);
       const calledRaw: string = ImportLogic.cell(raw, mapping.called);
+      // 完全空行（姓名/工号/手机/责任人均为空）跳过并计数，避免产生无意义行
+      if (name.trim() === '' && empNo.trim() === '' && phoneRaw.trim() === '' && assignee.trim() === '') {
+        skippedEmpty++;
+        rowNo++;
+        continue;
+      }
       if (mapping.called !== '') {
         calledValues.push(calledRaw);
       }
@@ -76,7 +85,8 @@ export class ImportLogic {
       mapping: mapping,
       allColumns: headers.slice(),
       rows: rows,
-      calledValueFormat: CalledValue.detectFormat(calledValues)
+      calledValueFormat: CalledValue.detectFormat(calledValues),
+      skippedEmpty: skippedEmpty
     };
     return result;
   }

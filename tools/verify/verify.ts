@@ -112,6 +112,33 @@ check('row_key_prefers_emp_no', () => {
   assert.strictEqual(MergeService.buildRowKey('10001', '张三', '19999999999'), 'E:10001');
   assert.notStrictEqual(MergeService.buildRowKey('', '张三', '19999999999'), 'E:');
 });
+check('duplicate_keys_preserved_in_file', () => {
+  const dupA: MergeRowData = row('10001', '张三', '19999999999', false, 1);
+  const dupB: MergeRowData = row('10001', '张三', '19999999999', false, 2);
+  // 无本地行：文件内同键两条都插入（v0.5.3 修复：不再去重丢弃）
+  const p1 = MergeService.computePlan([dupA, dupB], []);
+  assert.strictEqual(p1.inserts.length, 2);
+  assert.strictEqual(p1.updates.length, 0);
+  // 一条本地行：一条更新 + 一条插入，状态取"或"保留
+  const localOne: LocalRowSnapshot[] = [{ id: 1, rowKey: 'E:10001', called: true }];
+  const p2 = MergeService.computePlan([dupA, dupB], localOne);
+  assert.strictEqual(p2.updates.length, 1);
+  assert.strictEqual(p2.inserts.length, 1);
+  assert.strictEqual(p2.updates[0].calledMerged, true);
+  // 两条本地行：两条更新，无移除
+  const localTwo: LocalRowSnapshot[] = [
+    { id: 1, rowKey: 'E:10001', called: false },
+    { id: 2, rowKey: 'E:10001', called: true }
+  ];
+  const p3 = MergeService.computePlan([dupA, dupB], localTwo);
+  assert.strictEqual(p3.updates.length, 2);
+  assert.strictEqual(p3.inserts.length, 0);
+  assert.strictEqual(p3.removedLocalIds.length, 0);
+  // 一条新行 vs 两条本地行：一条更新 + 一条移除
+  const p4 = MergeService.computePlan([dupA], localTwo);
+  assert.strictEqual(p4.updates.length, 1);
+  assert.strictEqual(p4.removedLocalIds.length, 1);
+});
 
 console.log('[verify] CalledValue (FR-2 判定表 / R-5)');
 check('boolean_mapping_table', () => {
@@ -224,6 +251,15 @@ check('prepare_uncalled_and_unknown_columns_kept', () => {
   assert.strictEqual(r.rows[0].calledFromFile, false);
   assert.strictEqual(r.rows[0].rawData['未知列X'], 'hello');
   assert.strictEqual(r.calledValueFormat, 'yes_no');
+});
+check('prepare_skips_fully_empty_rows', () => {
+  const sheet: ParsedSheet = {
+    headers: ['姓名', '工号', '手机'],
+    rows: [['', '', ''], ['张三', 'E1', '13800000000'], ['', '', '']]
+  };
+  const r = ImportLogic.prepare(sheet);
+  assert.strictEqual(r.rows.length, 1);
+  assert.strictEqual(r.skippedEmpty, 2);
 });
 
 console.log('[verify] ExportLogic (FR-7 组装与命名)');
