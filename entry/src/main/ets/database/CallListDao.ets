@@ -155,11 +155,12 @@ export class CallListDao {
     return list;
   }
 
-  /** 当前生效数据集的键快照（合并决策输入，含已打状态） */
+  /** 当前生效数据集的键快照（合并决策输入，含已打状态）。
+   *  按 id 升序保证同键多行时队列匹配顺序稳定（v0.5.3 加固） */
   static async getActiveKeyRows(): Promise<KeyRow[]> {
     const store: relationalStore.RdbStore = DbHelper.getStore();
     const rs: relationalStore.ResultSet = await store.querySql(
-      'SELECT id, row_key, called FROM call_list WHERE in_file = 1', []);
+      'SELECT id, row_key, called FROM call_list WHERE in_file = 1 ORDER BY id ASC', []);
     const list: KeyRow[] = [];
     while (rs.goToNextRow()) {
       const item: KeyRow = {

@@ -356,4 +356,29 @@ check('builtin_flow_preserves_called_state', () => {
   assert.strictEqual(hash1, MergeService.hashBytes(bytes));
 });
 
+console.log('[verify] v0.5.3 重复键行全链路保真（xlsx 往返 → 解析 → 合并）');
+check('duplicate_key_rows_survive_full_chain', () => {
+  // 构造 26 行，其中 2 行同工号（模拟内网多任务行），经 xlsx 写出/解析/准备/合并后必须全部保留
+  const headers: string[] = ['责任人', '姓名', '工号', '手机', '是否已打', '备注'];
+  const table: string[][] = [headers];
+  for (let i = 1; i <= 26; i++) {
+    table.push(['张三', '客户' + i, 'E' + (i <= 24 ? 10000 + i : 10001), '+86-199' + (10000000 + i), '', '']);
+  }
+  const bytes: Uint8Array = XlsxService.write(table);
+  const sheet: ParsedSheet = XlsxService.parse(bytes);
+  const prepared = ImportLogic.prepare(sheet);
+  assert.strictEqual(prepared.rows.length, 26, '解析层不丢行');
+  const plan = MergeService.computePlan(prepared.rows, []);
+  assert.strictEqual(plan.inserts.length, 26, '合并层不丢重复键行');
+  assert.strictEqual(plan.updates.length, 0);
+  // 有本地数据时（模拟第二次导入）：全部匹配更新，不产生重复
+  const locals: LocalRowSnapshot[] = plan.inserts.map((r: MergeRowData, i: number): LocalRowSnapshot => {
+    return { id: i + 1, rowKey: r.rowKey, called: false };
+  });
+  const plan2 = MergeService.computePlan(prepared.rows, locals);
+  assert.strictEqual(plan2.updates.length, 26);
+  assert.strictEqual(plan2.inserts.length, 0);
+  assert.strictEqual(plan2.removedLocalIds.length, 0);
+});
+
 console.log(`[verify] ALL ${passed} CHECKS PASSED`);
