@@ -21,10 +21,25 @@ export class StatusDao {
     const pred: relationalStore.RdbPredicates =
       new relationalStore.RdbPredicates(Constants.TABLE_CALL_STATUS);
     pred.equalTo('row_id', rowId).and().equalTo('status_key', Constants.STATUS_KEY_CALLED);
+    // 保持原语义：先关闭结果集再进行写入（查询/写入分离，避免同一连接游标挂起）
+    let exists: boolean = false;
     let rs: relationalStore.ResultSet | undefined = undefined;
     try {
       rs = await store.query(pred, ['id']);
-      const exists: boolean = rs.goToNextRow();
+      exists = rs.goToNextRow();
+    } catch (e) {
+      Logger.error(TAG, 'upsertCalledPlain query failed: ' + (e as Error).message);
+      throw new Error('upsertCalledPlain query failed: ' + (e as Error).message);
+    } finally {
+      if (rs !== undefined) {
+        try {
+          rs.close();
+        } catch (e) {
+          // 关闭失败忽略：不影响写入结果
+        }
+      }
+    }
+    try {
       if (exists) {
         const vb: relationalStore.ValuesBucket = { 'value': value, 'updated_at': Date.now() };
         await store.update(vb, pred);
@@ -38,16 +53,8 @@ export class StatusDao {
         await store.insert(Constants.TABLE_CALL_STATUS, vb);
       }
     } catch (e) {
-      Logger.error(TAG, 'upsertCalledPlain failed: ' + (e as Error).message);
-      throw new Error('upsertCalledPlain failed: ' + (e as Error).message);
-    } finally {
-      if (rs !== undefined) {
-        try {
-          rs.close();
-        } catch (e) {
-          // 关闭失败忽略：不影响写入结果
-        }
-      }
+      Logger.error(TAG, 'upsertCalledPlain write failed: ' + (e as Error).message);
+      throw new Error('upsertCalledPlain write failed: ' + (e as Error).message);
     }
   }
 

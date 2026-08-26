@@ -20,7 +20,9 @@ import { CallConfirmDialog } from '../components/CallConfirmDialog';
 import { ContactDetail } from './ContactDetail';
 import { Settings } from './Settings';
 import { AssigneePicker } from './AssigneePicker';
+import { Logger } from '../common/Logger';
 
+const TAG: string = 'Index';
 const FILTER_ALL: number = -1;
 const FILTER_UNCALLED: number = 0;
 const FILTER_CALLED: number = 1;
@@ -383,6 +385,7 @@ struct Index {
 
   /** 子页返回：重载责任人视图与统计（责任人在选择页可能已切换） */
   private onSubPageReturn(): void {
+    Logger.info(TAG, 'sub page popped, reloading list');
     this.vm.reloadAssignee().then(() => {
       this.syncAll();
     });
