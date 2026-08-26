@@ -383,12 +383,19 @@ struct Index {
     }
   }
 
-  /** 子页返回：重载责任人视图与统计（责任人在选择页可能已切换） */
+  /**
+   * 子页返回：重载责任人视图与统计（责任人在选择页可能已切换）。
+   * 真机实测（SGT-AL10）：pop 过渡期间宿主 List 仍处于隐藏态，此时 LazyForEach 的
+   * onDataReloaded 不触发重建（统计能更新、列表行不刷新）；延迟到过渡完成后
+   * （宿主可见）再刷新即可正常重建列表。
+   */
   private onSubPageReturn(): void {
     Logger.info(TAG, 'sub page popped, reloading list');
-    this.vm.reloadAssignee().then(() => {
-      this.syncAll();
-    });
+    setTimeout(() => {
+      this.vm.reloadAssignee().then(() => {
+        this.syncAll();
+      });
+    }, 400);
   }
 
   @Builder
