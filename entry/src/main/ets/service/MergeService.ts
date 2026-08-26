@@ -5,7 +5,8 @@
  *
  * 合并规则：
  *  1. 行匹配键：工号非空 → "E:{工号}"；否则 "H:{hash(姓名+手机原文)}"
- *  2. 已打状态取"或"：本地或新文件任一为已打，合并后即为已打
+ *  2. 状态取"或"：called（R-1）与 connected/intention（M3，R-8）
+ *     本地或新文件任一为真即真（打通/意向为终态事实，本机维护不丢）
  *  3. 其他字段以新文件为准；新文件缺失的本地行标记移除（in_file=0）
  */
 
@@ -20,6 +21,10 @@ export interface MergeRowData {
   phoneNumbers: string[];
   rawData: Record<string, string>;
   calledFromFile: boolean;
+  /** M3：是否打通（新文件判定值，通用判定表） */
+  connectedFromFile: boolean;
+  /** M3：是否有意向（新文件判定值，通用判定表） */
+  intentionFromFile: boolean;
 }
 
 /** 本地已有行的最小快照（供合并决策） */
@@ -27,6 +32,10 @@ export interface LocalRowSnapshot {
   id: number;
   rowKey: string;
   called: boolean;
+  /** M3：本机是否打通（call_status 读取） */
+  connected: boolean;
+  /** M3：本机是否有意向（call_status 读取） */
+  intention: boolean;
 }
 
 /** 一条更新指令 */
@@ -34,6 +43,10 @@ export interface MergeUpdate {
   localId: number;
   data: MergeRowData;
   calledMerged: boolean;
+  /** M3：打通取"或"结果 */
+  connectedMerged: boolean;
+  /** M3：意向取"或"结果 */
+  intentionMerged: boolean;
 }
 
 /** 合并计划（由 ImportService 在单事务内执行） */
@@ -101,7 +114,9 @@ export class MergeService {
         const update: MergeUpdate = {
           localId: local.id,
           data: n,
-          calledMerged: local.called || n.calledFromFile
+          calledMerged: local.called || n.calledFromFile,
+          connectedMerged: local.connected || n.connectedFromFile,
+          intentionMerged: local.intention || n.intentionFromFile
         };
         plan.updates.push(update);
       } else {
@@ -162,5 +177,60 @@ export class CalledValue {
       return '';
     }
     return format === 'one_blank' ? '1' : '是';
+  }
+}
+
+/**
+ * M3 通用状态判定表（打通/意向复用，FR-10/FR-11/R-8/R-9）：
+ * 在 CalledValue（P1-6）基础上扩展 有/有意向/打通 → 真，无/无意向 → 假；
+ * 导出格式独立探测，新增 has_none（有/空，意向列惯用）。
+ */
+export class StatusValue {
+  private static readonly TRUE_VALUES: string[] =
+    ['是', '已打', '已拨打', '√', '✓', '1', 'true', 'TRUE', 'Y', 'YES', '完成', '有', '有意向', '打通'];
+  private static readonly FALSE_VALUES: string[] =
+    ['否', '未打', '未拨打', '0', 'false', 'FALSE', 'N', 'NO', '无', '无意向'];
+
+  /** 导入判定：无法识别的值归为假（原值仍保留在 raw_data 中） */
+  static toBoolean(raw: string): boolean {
+    const v: string = raw.trim();
+    if (v === '') {
+      return false;
+    }
+    if (StatusValue.TRUE_VALUES.indexOf(v) >= 0) {
+      return true;
+    }
+    return false;
+  }
+
+  /** 导出格式探测：yes_no（是/空）| one_blank（1/空）| has_none（有/空）；无法判定默认 yes_no */
+  static detectFormat(values: string[]): string {
+    for (const v of values) {
+      const t: string = v.trim();
+      if (t === '有' || t === '无') {
+        return 'has_none';
+      }
+      if (t === '是' || t === '否') {
+        return 'yes_no';
+      }
+      if (t === '1' || t === '√' || t === '✓') {
+        return 'one_blank';
+      }
+    }
+    return 'yes_no';
+  }
+
+  /** 导出值写入：真→格式值（是/1/有），假→空 */
+  static toExportValue(value: boolean, format: string): string {
+    if (!value) {
+      return '';
+    }
+    if (format === 'one_blank') {
+      return '1';
+    }
+    if (format === 'has_none') {
+      return '有';
+    }
+    return '是';
   }
 }

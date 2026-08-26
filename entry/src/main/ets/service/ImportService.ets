@@ -8,6 +8,7 @@ import { StatusDao } from '../database/StatusDao';
 import { ImportMeta } from '../model/ImportMeta';
 import { CallRecord } from '../model/CallRecord';
 import { Logger } from '../common/Logger';
+import { Constants } from '../common/Constants';
 import { CsvService, Decoder, DecoderFactory, ParsedSheet } from './CsvService';
 import { XlsxService } from './XlsxService';
 import { ImportLogic, ImportPrepareResult } from './ImportLogic';
@@ -131,7 +132,13 @@ export class ImportService {
     format: string, encoding: string): Promise<void> {
     const localKeyRows = await CallListDao.getActiveKeyRows();
     const snapshots: LocalRowSnapshot[] = localKeyRows.map((k): LocalRowSnapshot => {
-      return { id: k.id, rowKey: k.rowKey, called: k.called };
+      return {
+        id: k.id,
+        rowKey: k.rowKey,
+        called: k.called,
+        connected: k.connected,
+        intention: k.intention
+      };
     });
     const plan: MergePlan = MergeService.computePlan(prepared.rows, snapshots);
     // 导入诊断日志（内网设备丢行排查用）：hilog 过滤 'ImportService' 即可见
@@ -146,16 +153,28 @@ export class ImportService {
       meta.columnMapping = prepared.mapping.toRecord();
       meta.allColumns = prepared.allColumns;
       meta.calledValueFormat = prepared.calledValueFormat;
+      meta.connectedValueFormat = prepared.connectedValueFormat;
+      meta.intentionValueFormat = prepared.intentionValueFormat;
       meta.active = false;
       meta.importedAt = Date.now();
       const metaId: number = await MetaDao.insert(meta);
       for (const row of plan.inserts) {
         const record: CallRecord = ImportService.toRecord(metaId, row, row.calledFromFile);
-        await CallListDao.insertPlain(record);
+        const rowId: number = await CallListDao.insertPlain(record);
+        // M3：新行落库三状态（connected/intention 取文件判定值；called 已在缓存列）
+        await StatusDao.upsertStatusPlain(rowId, Constants.STATUS_KEY_CONNECTED,
+          row.connectedFromFile ? 1 : 0);
+        await StatusDao.upsertStatusPlain(rowId, Constants.STATUS_KEY_INTENTION,
+          row.intentionFromFile ? 1 : 0);
       }
       for (const u of plan.updates) {
         await CallListDao.updateFromFile(u.localId, u.data, u.calledMerged);
         await StatusDao.upsertCalledPlain(u.localId, u.calledMerged ? 1 : 0);
+        // M3：合并取"或"落库
+        await StatusDao.upsertStatusPlain(u.localId, Constants.STATUS_KEY_CONNECTED,
+          u.connectedMerged ? 1 : 0);
+        await StatusDao.upsertStatusPlain(u.localId, Constants.STATUS_KEY_INTENTION,
+          u.intentionMerged ? 1 : 0);
       }
       await CallListDao.markRemoved(plan.removedLocalIds);
       await MetaDao.clearActivePlain();

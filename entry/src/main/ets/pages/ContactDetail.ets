@@ -23,6 +23,10 @@ export struct ContactDetail {
   @State record: CallRecord = new CallRecord();
   @State columns: string[] = [];
   @State calledCol: string = '';
+  @State connectedCol: string = '';
+  @State intentionCol: string = '';
+  @State connected: boolean = false;
+  @State intention: boolean = false;
   @State loaded: boolean = false;
   @State showNumberSheet: boolean = false;
   @State sheetNumbers: string[] = [];
@@ -58,6 +62,11 @@ export struct ContactDetail {
     const meta: ImportMeta | undefined = await MetaDao.getActive();
     this.columns = meta !== undefined ? meta.allColumns : [];
     this.calledCol = meta !== undefined ? (meta.columnMapping['called'] ?? '') : '';
+    this.connectedCol = meta !== undefined ? (meta.columnMapping['connected'] ?? '') : '';
+    this.intentionCol = meta !== undefined ? (meta.columnMapping['intention'] ?? '') : '';
+    // M3：读取打通/意向状态（缺省 false）
+    this.connected = await StatusDao.getValue(rec.id, Constants.STATUS_KEY_CONNECTED);
+    this.intention = await StatusDao.getValue(rec.id, Constants.STATUS_KEY_INTENTION);
     this.loaded = true;
   }
 
@@ -162,6 +171,24 @@ export struct ContactDetail {
             });
           })
         Text(this.record.called ? '已打' : '未打').fontSize(14)
+      } else if (col === this.connectedCol) {
+        Checkbox()
+          .select(this.connected)
+          .onChange((v: boolean) => {
+            StatusDao.setValue(this.record.id, Constants.STATUS_KEY_CONNECTED, v).then(() => {
+              this.connected = v;
+            });
+          })
+        Text(this.connected ? '打通' : '未打通').fontSize(14)
+      } else if (col === this.intentionCol) {
+        Checkbox()
+          .select(this.intention)
+          .onChange((v: boolean) => {
+            StatusDao.setValue(this.record.id, Constants.STATUS_KEY_INTENTION, v).then(() => {
+              this.intention = v;
+            });
+          })
+        Text(this.intention ? '有意向' : '无意向').fontSize(14)
       } else {
         Text(this.record.rawData[col] ?? '')
           .fontSize(14)

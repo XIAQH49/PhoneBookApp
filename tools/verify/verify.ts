@@ -8,13 +8,13 @@ import assert from 'node:assert';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { NumberParseService } from '../../entry/src/main/ets/service/NumberParseService.ts';
-import { MergeService, CalledValue } from '../../entry/src/main/ets/service/MergeService.ts';
+import { MergeService, CalledValue, StatusValue } from '../../entry/src/main/ets/service/MergeService.ts';
 import type { MergeRowData, LocalRowSnapshot } from '../../entry/src/main/ets/service/MergeService.ts';
 import { CsvService } from '../../entry/src/main/ets/service/CsvService.ts';
 import type { Decoder, DecoderFactory, ParsedSheet } from '../../entry/src/main/ets/service/CsvService.ts';
 import { ImportLogic } from '../../entry/src/main/ets/service/ImportLogic.ts';
 import { ExportLogic } from '../../entry/src/main/ets/service/ExportLogic.ts';
-import type { ExportRow } from '../../entry/src/main/ets/service/ExportLogic.ts';
+import type { ExportRow, ExportColumns } from '../../entry/src/main/ets/service/ExportLogic.ts';
 import { XlsxService } from '../../entry/src/main/ets/service/XlsxService.ts';
 // 与被测服务同一份库文件：功能面 node 往返验证（真机加载/性能见 T-1 spike）
 import XLSX from '../../entry/src/main/ets/libs/xlsx.full.min.js';
@@ -81,13 +81,16 @@ function row(empNo: string, name: string, phone: string, called: boolean, no: nu
     name: name, empNo: empNo, assignee: '张三', phoneRaw: phone,
     phoneNumbers: ['+8619999999999'],
     rawData: { '责任人': '张三', '姓名': name, '工号': empNo, '手机': phone },
-    calledFromFile: called, rowNo: no
+    calledFromFile: called,
+    connectedFromFile: false,
+    intentionFromFile: false,
+    rowNo: no
   };
 }
 const localRows: LocalRowSnapshot[] = [
-  { id: 1, rowKey: 'E:10001', called: true },
-  { id: 2, rowKey: MergeService.buildRowKey('', '李四', '13800000000'), called: false },
-  { id: 3, rowKey: 'E:10003', called: false }
+  { id: 1, rowKey: 'E:10001', called: true, connected: false, intention: false },
+  { id: 2, rowKey: MergeService.buildRowKey('', '李四', '13800000000'), called: false, connected: true, intention: true },
+  { id: 3, rowKey: 'E:10003', called: false, connected: false, intention: false }
 ];
 
 check('state_takes_or_local_wins', () => {
@@ -120,15 +123,15 @@ check('duplicate_keys_preserved_in_file', () => {
   assert.strictEqual(p1.inserts.length, 2);
   assert.strictEqual(p1.updates.length, 0);
   // 一条本地行：一条更新 + 一条插入，状态取"或"保留
-  const localOne: LocalRowSnapshot[] = [{ id: 1, rowKey: 'E:10001', called: true }];
+  const localOne: LocalRowSnapshot[] = [{ id: 1, rowKey: 'E:10001', called: true, connected: false, intention: false }];
   const p2 = MergeService.computePlan([dupA, dupB], localOne);
   assert.strictEqual(p2.updates.length, 1);
   assert.strictEqual(p2.inserts.length, 1);
   assert.strictEqual(p2.updates[0].calledMerged, true);
   // 两条本地行：两条更新，无移除
   const localTwo: LocalRowSnapshot[] = [
-    { id: 1, rowKey: 'E:10001', called: false },
-    { id: 2, rowKey: 'E:10001', called: true }
+    { id: 1, rowKey: 'E:10001', called: false, connected: false, intention: false },
+    { id: 2, rowKey: 'E:10001', called: true, connected: false, intention: false }
   ];
   const p3 = MergeService.computePlan([dupA, dupB], localTwo);
   assert.strictEqual(p3.updates.length, 2);
@@ -265,27 +268,41 @@ check('prepare_skips_fully_empty_rows', () => {
 console.log('[verify] ExportLogic (FR-7 组装与命名)');
 check('assemble_overrides_called_and_keeps_unknown', () => {
   const rows: ExportRow[] = [
-    { called: true, rawData: { '姓名': '张三', '是否已打': '否', '备注': 'x' } },
-    { called: false, rawData: { '姓名': '李四', '是否已打': '', '备注': 'y' } }
+    { called: true, connected: false, intention: false, rawData: { '姓名': '张三', '是否已打': '否', '备注': 'x' } },
+    { called: false, connected: false, intention: false, rawData: { '姓名': '李四', '是否已打': '', '备注': 'y' } }
   ];
-  const table: string[][] = ExportLogic.assemble(
-    ['姓名', '是否已打', '备注'], '是否已打', 'yes_no', rows);
+  const cols: ExportColumns = {
+    called: '是否已打', calledFormat: 'yes_no',
+    connected: '', connectedFormat: 'yes_no',
+    intention: '', intentionFormat: 'yes_no'
+  };
+  const table: string[][] = ExportLogic.assemble(['姓名', '是否已打', '备注'], cols, rows);
   assert.deepStrictEqual(table[0], ['姓名', '是否已打', '备注']);
   assert.deepStrictEqual(table[1], ['张三', '是', 'x']);
   assert.deepStrictEqual(table[2], ['李四', '', 'y']);
 });
 check('assemble_one_blank_format', () => {
   const rows: ExportRow[] = [
-    { called: true, rawData: { '是否已打': '0' } }
+    { called: true, connected: false, intention: false, rawData: { '是否已打': '0' } }
   ];
-  const table: string[][] = ExportLogic.assemble(['是否已打'], '是否已打', 'one_blank', rows);
+  const cols: ExportColumns = {
+    called: '是否已打', calledFormat: 'one_blank',
+    connected: '', connectedFormat: 'yes_no',
+    intention: '', intentionFormat: 'yes_no'
+  };
+  const table: string[][] = ExportLogic.assemble(['是否已打'], cols, rows);
   assert.deepStrictEqual(table[1], ['1']);
 });
 check('assemble_without_called_column', () => {
   const rows: ExportRow[] = [
-    { called: true, rawData: { '备注': 'z' } }
+    { called: true, connected: false, intention: false, rawData: { '备注': 'z' } }
   ];
-  const table: string[][] = ExportLogic.assemble(['备注'], '', 'yes_no', rows);
+  const cols: ExportColumns = {
+    called: '', calledFormat: 'yes_no',
+    connected: '', connectedFormat: 'yes_no',
+    intention: '', intentionFormat: 'yes_no'
+  };
+  const table: string[][] = ExportLogic.assemble(['备注'], cols, rows);
   assert.deepStrictEqual(table[1], ['z']);
 });
 check('file_name_timestamp', () => {
@@ -347,7 +364,7 @@ check('builtin_flow_preserves_called_state', () => {
   assert.strictEqual(prepared.rows.length, 2000);
   // 模拟"本地已打 + 内置文件未打"：合并结果必须保持已打（状态取"或"，R-1）
   const forcedLocal: LocalRowSnapshot[] = [
-    { id: 1, rowKey: prepared.rows[0].rowKey, called: true }
+    { id: 1, rowKey: prepared.rows[0].rowKey, called: true, connected: false, intention: false }
   ];
   const plan = MergeService.computePlan([prepared.rows[0]], forcedLocal);
   assert.strictEqual(plan.updates.length, 1);
@@ -373,12 +390,115 @@ check('duplicate_key_rows_survive_full_chain', () => {
   assert.strictEqual(plan.updates.length, 0);
   // 有本地数据时（模拟第二次导入）：全部匹配更新，不产生重复
   const locals: LocalRowSnapshot[] = plan.inserts.map((r: MergeRowData, i: number): LocalRowSnapshot => {
-    return { id: i + 1, rowKey: r.rowKey, called: false };
+    return { id: i + 1, rowKey: r.rowKey, called: false, connected: false, intention: false };
   });
   const plan2 = MergeService.computePlan(prepared.rows, locals);
   assert.strictEqual(plan2.updates.length, 26);
   assert.strictEqual(plan2.inserts.length, 0);
   assert.strictEqual(plan2.removedLocalIds.length, 0);
+});
+
+console.log('[verify] M3 StatusValue 通用判定表 / 三状态合并 / 导出写回 (FR-10/FR-11/R-8/R-9)');
+check('status_value_mapping_table', () => {
+  for (const v of ['是', '有', '有意向', '打通', '√', '1', 'YES']) {
+    assert.strictEqual(StatusValue.toBoolean(v), true, 'should be true: ' + v);
+  }
+  for (const v of ['否', '无', '无意向', '0', '', '   ', '未知值']) {
+    assert.strictEqual(StatusValue.toBoolean(v), false, 'should be false: ' + v);
+  }
+});
+check('status_format_detect_and_export', () => {
+  assert.strictEqual(StatusValue.detectFormat(['有', '无', '']), 'has_none');
+  assert.strictEqual(StatusValue.detectFormat(['是', '否']), 'yes_no');
+  assert.strictEqual(StatusValue.detectFormat(['1']), 'one_blank');
+  assert.strictEqual(StatusValue.detectFormat([]), 'yes_no');
+  assert.strictEqual(StatusValue.toExportValue(true, 'has_none'), '有');
+  assert.strictEqual(StatusValue.toExportValue(false, 'has_none'), '');
+  assert.strictEqual(StatusValue.toExportValue(true, 'yes_no'), '是');
+  assert.strictEqual(StatusValue.toExportValue(true, 'one_blank'), '1');
+});
+check('merge_three_status_takes_or', () => {
+  // 本地已打通 + 新文件未打通 → 合并后打通（R-8）
+  const locals: LocalRowSnapshot[] = [
+    { id: 1, rowKey: 'E:10001', called: false, connected: true, intention: false },
+    { id: 2, rowKey: 'E:10002', called: false, connected: false, intention: true }
+  ];
+  const fileRows: MergeRowData[] = [
+    row('10001', '张三', '19999999999', false, 1),
+    row('10002', '李四', '13800000000', false, 2)
+  ];
+  fileRows[0].connectedFromFile = false;
+  fileRows[1].intentionFromFile = false;
+  const plan = MergeService.computePlan(fileRows, locals);
+  assert.strictEqual(plan.updates.length, 2);
+  assert.strictEqual(plan.updates[0].connectedMerged, true, 'local connected kept (OR)');
+  assert.strictEqual(plan.updates[1].intentionMerged, true, 'local intention kept (OR)');
+  // 新文件真值也要保留
+  fileRows[0].connectedFromFile = true;
+  const plan2 = MergeService.computePlan([fileRows[0]], [{ id: 1, rowKey: 'E:10001', called: false, connected: false, intention: false }]);
+  assert.strictEqual(plan2.updates[0].connectedMerged, true, 'file connected kept (OR)');
+});
+check('import_prepare_three_status_and_formats', () => {
+  const sheet: ParsedSheet = {
+    headers: ['姓名', '工号', '手机', '是否已打', '是否打通', '是否有意向'],
+    rows: [
+      ['张三', 'E1', '19999999999', '是', '是', '有'],
+      ['李四', 'E2', '13800000000', '', '否', '无']
+    ]
+  };
+  const r = ImportLogic.prepare(sheet);
+  assert.strictEqual(r.rows[0].connectedFromFile, true);
+  assert.strictEqual(r.rows[0].intentionFromFile, true);
+  assert.strictEqual(r.rows[1].connectedFromFile, false);
+  assert.strictEqual(r.rows[1].intentionFromFile, false);
+  assert.strictEqual(r.calledValueFormat, 'yes_no');
+  assert.strictEqual(r.connectedValueFormat, 'yes_no');
+  assert.strictEqual(r.intentionValueFormat, 'has_none');
+  assert.strictEqual(r.rows[0].rawData['是否有意向'], '有', '原值保留');
+});
+check('export_three_columns_write_back', () => {
+  const rows: ExportRow[] = [
+    { called: true, connected: true, intention: true, rawData: { '姓名': '张三', '是否已打': '否', '是否打通': '否', '是否有意向': '无' } },
+    { called: false, connected: false, intention: false, rawData: { '姓名': '李四', '是否已打': '', '是否打通': '', '是否有意向': '' } }
+  ];
+  const cols: ExportColumns = {
+    called: '是否已打', calledFormat: 'yes_no',
+    connected: '是否打通', connectedFormat: 'one_blank',
+    intention: '是否有意向', intentionFormat: 'has_none'
+  };
+  const table: string[][] = ExportLogic.assemble(
+    ['姓名', '是否已打', '是否打通', '是否有意向'], cols, rows);
+  assert.deepStrictEqual(table[1], ['张三', '是', '1', '有']);
+  assert.deepStrictEqual(table[2], ['李四', '', '', '']);
+  // 三列均不存在时：全原样
+  const colsNone: ExportColumns = {
+    called: '', calledFormat: 'yes_no',
+    connected: '', connectedFormat: 'yes_no',
+    intention: '', intentionFormat: 'yes_no'
+  };
+  const table2: string[][] = ExportLogic.assemble(['姓名', '备注'], colsNone, rows);
+  assert.deepStrictEqual(table2[1], ['张三', '']);
+});
+check('sample_2000_connected_columns_parsed', () => {
+  const bytes: Uint8Array = new Uint8Array(
+    fs.readFileSync(path.resolve('samples/名单样例_2000行.xlsx')));
+  const prepared = ImportLogic.prepare(XlsxService.parse(bytes));
+  const t = prepared.rows.filter(r => r.connectedFromFile).length;
+  assert.strictEqual(t, 400, '2000 行样本含 400 条已打通');
+  assert.strictEqual(prepared.connectedValueFormat, 'yes_no');
+});
+
+check('sample_m3_20rows_status_columns', () => {
+  const bytes: Uint8Array = new Uint8Array(
+    fs.readFileSync(path.resolve('samples/名单样例_M3_20行.xlsx')));
+  const prepared = ImportLogic.prepare(XlsxService.parse(bytes));
+  assert.strictEqual(prepared.rows.length, 20);
+  assert.strictEqual(prepared.connectedValueFormat, 'yes_no');
+  assert.strictEqual(prepared.intentionValueFormat, 'has_none');
+  const connectedTrue = prepared.rows.filter(r => r.connectedFromFile).length;
+  const intentionTrue = prepared.rows.filter(r => r.intentionFromFile).length;
+  assert.strictEqual(connectedTrue, 10, '偶数行打通');
+  assert.strictEqual(intentionTrue, 6, 'i%3==0 行有意向（i=3..18 共 6 行）');
 });
 
 console.log(`[verify] ALL ${passed} CHECKS PASSED`);

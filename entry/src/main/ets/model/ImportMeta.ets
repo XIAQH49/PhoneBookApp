@@ -1,6 +1,6 @@
 /**
  * 导入元信息模型（对应 import_meta 表，设计规格 3.1 节）。
- * 导出保真依赖：allColumns（原列顺序）+ calledValueFormat（已打列值格式）。
+ * 导出保真依赖：allColumns（原列顺序）+ called/connected/intention 三个 valueFormat。
  */
 export class ImportMeta {
   id: number = 0;
@@ -13,6 +13,10 @@ export class ImportMeta {
   allColumns: string[] = [];
   /** 已打列导出值格式：yes_no / one_blank */
   calledValueFormat: string = '';
+  /** M3：打通列导出值格式：yes_no / one_blank / has_none */
+  connectedValueFormat: string = '';
+  /** M3：意向列导出值格式：yes_no / one_blank / has_none */
+  intentionValueFormat: string = '';
   /** 仅一份为生效数据集 */
   active: boolean = false;
   importedAt: number = 0;

@@ -4,7 +4,7 @@
  */
 import { ColumnMapping } from '../model/ColumnMapping';
 import { NumberParseService } from './NumberParseService';
-import { MergeService, CalledValue } from './MergeService';
+import { MergeService, CalledValue, StatusValue } from './MergeService';
 import type { MergeRowData } from './MergeService';
 import type { ParsedSheet } from './CsvService';
 
@@ -14,6 +14,10 @@ export interface ImportPrepareResult {
   allColumns: string[];
   rows: MergeRowData[];
   calledValueFormat: string;
+  /** M3：打通列导出值格式 */
+  connectedValueFormat: string;
+  /** M3：意向列导出值格式 */
+  intentionValueFormat: string;
   /** 跳过的完全空行数（诊断用） */
   skippedEmpty: number;
 }
@@ -45,6 +49,8 @@ export class ImportLogic {
     const headers: string[] = sheet.headers;
     const mapping: ColumnMapping = ImportLogic.matchColumns(headers);
     const calledValues: string[] = [];
+    const connectedValues: string[] = [];
+    const intentionValues: string[] = [];
     const rows: MergeRowData[] = [];
     let skippedEmpty: number = 0;
     let rowNo: number = 2; // 表头为第 1 行
@@ -58,6 +64,8 @@ export class ImportLogic {
       const phoneRaw: string = ImportLogic.cell(raw, mapping.phone);
       const assignee: string = ImportLogic.cell(raw, mapping.assignee);
       const calledRaw: string = ImportLogic.cell(raw, mapping.called);
+      const connectedRaw: string = ImportLogic.cell(raw, mapping.connected);
+      const intentionRaw: string = ImportLogic.cell(raw, mapping.intention);
       // 完全空行（姓名/工号/手机/责任人均为空）跳过并计数，避免产生无意义行
       if (name.trim() === '' && empNo.trim() === '' && phoneRaw.trim() === '' && assignee.trim() === '') {
         skippedEmpty++;
@@ -66,6 +74,12 @@ export class ImportLogic {
       }
       if (mapping.called !== '') {
         calledValues.push(calledRaw);
+      }
+      if (mapping.connected !== '') {
+        connectedValues.push(connectedRaw);
+      }
+      if (mapping.intention !== '') {
+        intentionValues.push(intentionRaw);
       }
       const data: MergeRowData = {
         rowKey: MergeService.buildRowKey(empNo, name, phoneRaw),
@@ -76,7 +90,9 @@ export class ImportLogic {
         phoneRaw: phoneRaw,
         phoneNumbers: NumberParseService.parse(phoneRaw),
         rawData: raw,
-        calledFromFile: CalledValue.toBoolean(calledRaw)
+        calledFromFile: CalledValue.toBoolean(calledRaw),
+        connectedFromFile: StatusValue.toBoolean(connectedRaw),
+        intentionFromFile: StatusValue.toBoolean(intentionRaw)
       };
       rows.push(data);
       rowNo++;
@@ -86,6 +102,8 @@ export class ImportLogic {
       allColumns: headers.slice(),
       rows: rows,
       calledValueFormat: CalledValue.detectFormat(calledValues),
+      connectedValueFormat: StatusValue.detectFormat(connectedValues),
+      intentionValueFormat: StatusValue.detectFormat(intentionValues),
       skippedEmpty: skippedEmpty
     };
     return result;

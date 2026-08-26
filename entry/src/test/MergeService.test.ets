@@ -1,5 +1,5 @@
 import { describe, it, expect } from '@ohos/hypium';
-import { MergeService, CalledValue } from '../../main/ets/service/MergeService';
+import { MergeService, CalledValue, StatusValue } from '../../main/ets/service/MergeService';
 import type { MergeRowData, LocalRowSnapshot, MergeUpdate, MergePlan } from '../../main/ets/service/MergeService';
 
 /**
@@ -19,17 +19,20 @@ function makeRow(empNo: string, name: string, phone: string, called: boolean, no
     phoneRaw: phone,
     phoneNumbers: nums,
     rawData: raw,
-    calledFromFile: called
+    calledFromFile: called,
+    connectedFromFile: false,
+    intentionFromFile: false
   };
   return row;
 }
 
 function buildLocalRows(): LocalRowSnapshot[] {
-  const l1: LocalRowSnapshot = { id: 1, rowKey: 'E:10001', called: true };
+  const l1: LocalRowSnapshot = { id: 1, rowKey: 'E:10001', called: true, connected: false, intention: false };
   const l2: LocalRowSnapshot = {
-    id: 2, rowKey: MergeService.buildRowKey('', '李四', '13800000000'), called: false
+    id: 2, rowKey: MergeService.buildRowKey('', '李四', '13800000000'), called: false,
+    connected: true, intention: true
   };
-  const l3: LocalRowSnapshot = { id: 3, rowKey: 'E:10003', called: false };
+  const l3: LocalRowSnapshot = { id: 3, rowKey: 'E:10003', called: false, connected: false, intention: false };
   const list: LocalRowSnapshot[] = [l1, l2, l3];
   return list;
 }
@@ -74,6 +77,19 @@ export default function mergeServiceTest() {
       expect(CalledValue.toBoolean('否')).assertFalse();
       expect(CalledValue.toBoolean('')).assertFalse();
       expect(CalledValue.toBoolean('未知值')).assertFalse();
+    });
+
+    it('m3_status_value_and_three_status_merge', 0, () => {
+      expect(StatusValue.toBoolean('有')).assertTrue();
+      expect(StatusValue.toBoolean('无意向')).assertFalse();
+      expect(StatusValue.detectFormat(['有', '无'])).assertEqual('has_none');
+      expect(StatusValue.toExportValue(true, 'has_none')).assertEqual('有');
+      const locals: LocalRowSnapshot[] = [
+        { id: 1, rowKey: 'E:10001', called: false, connected: true, intention: false }
+      ];
+      const plan: MergePlan = MergeService.computePlan([makeRow('10001', '张三', '19999999999', false, 1)], locals);
+      expect(plan.updates.length).assertEqual(1);
+      expect(plan.updates[0].connectedMerged === true).assertTrue();
     });
 
     it('format_detect_and_export_value', 0, () => {

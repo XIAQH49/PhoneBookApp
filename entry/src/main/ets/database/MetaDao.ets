@@ -26,6 +26,8 @@ export class MetaDao {
       'column_mapping': JSON.stringify(meta.columnMapping),
       'all_columns': JSON.stringify(meta.allColumns),
       'called_value_format': meta.calledValueFormat,
+      'connected_value_format': meta.connectedValueFormat,
+      'intention_value_format': meta.intentionValueFormat,
       'active': meta.active ? 1 : 0,
       'imported_at': meta.importedAt
     };
@@ -142,6 +144,8 @@ export class MetaDao {
         meta.allColumns = [];
       }
       meta.calledValueFormat = rs.getString(rs.getColumnIndex('called_value_format'));
+      meta.connectedValueFormat = rs.getString(rs.getColumnIndex('connected_value_format'));
+      meta.intentionValueFormat = rs.getString(rs.getColumnIndex('intention_value_format'));
       meta.active = rs.getLong(rs.getColumnIndex('active')) === 1;
       meta.importedAt = rs.getLong(rs.getColumnIndex('imported_at'));
       return meta;

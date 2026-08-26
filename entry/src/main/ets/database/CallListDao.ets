@@ -5,11 +5,15 @@ import { CallRecord, CountResult } from '../model/CallRecord';
 import { MergeRowData } from '../service/MergeService';
 import { Logger } from '../common/Logger';
 
-/** 合并用的本地行快照（含已打状态，供 MergeService.computePlan 决策） */
+/** 合并用的本地行快照（含三状态，供 MergeService.computePlan 决策） */
 export interface KeyRow {
   id: number;
   rowKey: string;
   called: boolean;
+  /** M3：本机是否打通 */
+  connected: boolean;
+  /** M3：本机是否有意向 */
+  intention: boolean;
 }
 
 const TAG: string = 'CallListDao';
@@ -233,20 +237,28 @@ export class CallListDao {
     }
   }
 
-  /** 当前生效数据集的键快照（合并决策输入，含已打状态）。
-   *  按 id 升序保证同键多行时队列匹配顺序稳定（v0.5.3 加固） */
+  /** 当前生效数据集的键快照（合并决策输入，含三状态）。
+   *  按 id 升序保证同键多行时队列匹配顺序稳定（v0.5.3 加固）；
+   *  M3：LEFT JOIN call_status 一次取回 connected/intention（UNIQUE(row_id,status_key) 保证至多一行）。 */
   static async getActiveKeyRows(): Promise<KeyRow[]> {
     const store: relationalStore.RdbStore = DbHelper.getStore();
     let rs: relationalStore.ResultSet | undefined = undefined;
     try {
       rs = await store.querySql(
-        'SELECT id, row_key, called FROM call_list WHERE in_file = 1 ORDER BY id ASC', []);
+        'SELECT l.id AS id, l.row_key AS row_key, l.called AS called, ' +
+        "COALESCE(MAX(CASE WHEN s.status_key = 'connected' THEN s.value END), 0) AS connected, " +
+        "COALESCE(MAX(CASE WHEN s.status_key = 'intention' THEN s.value END), 0) AS intention " +
+        'FROM call_list l ' +
+        "LEFT JOIN call_status s ON s.row_id = l.id AND s.status_key IN ('connected', 'intention') " +
+        'WHERE l.in_file = 1 GROUP BY l.id, l.row_key, l.called ORDER BY l.id ASC', []);
       const list: KeyRow[] = [];
       while (rs.goToNextRow()) {
         const item: KeyRow = {
           id: rs.getLong(rs.getColumnIndex('id')),
           rowKey: rs.getString(rs.getColumnIndex('row_key')),
-          called: rs.getLong(rs.getColumnIndex('called')) === 1
+          called: rs.getLong(rs.getColumnIndex('called')) === 1,
+          connected: rs.getLong(rs.getColumnIndex('connected')) === 1,
+          intention: rs.getLong(rs.getColumnIndex('intention')) === 1
         };
         list.push(item);
       }

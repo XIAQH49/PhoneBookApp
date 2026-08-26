@@ -4,6 +4,8 @@ import { util } from '@kit.ArkTS';
 import { CallListDao } from '../database/CallListDao';
 import { MetaDao } from '../database/MetaDao';
 import { ConfigDao } from '../database/ConfigDao';
+import { StatusDao } from '../database/StatusDao';
+import type { StatusEntry } from '../database/StatusDao';
 import { CallRecord } from '../model/CallRecord';
 import { ImportMeta } from '../model/ImportMeta';
 import { Constants } from '../common/Constants';
@@ -11,7 +13,7 @@ import { Logger } from '../common/Logger';
 import { CsvService } from './CsvService';
 import { XlsxService } from './XlsxService';
 import { ExportLogic } from './ExportLogic';
-import type { ExportRow } from './ExportLogic';
+import type { ExportRow, ExportColumns } from './ExportLogic';
 
 const TAG: string = 'ExportService';
 
@@ -40,13 +42,37 @@ export class ExportService {
       if (records.length === 0) {
         return { success: false, message: '当前范围内没有可导出的数据', fileName: '' };
       }
+      // M3：批量读取打通/意向状态（导出写回）
+      const ids: number[] = records.map((r: CallRecord): number => r.id);
+      const statuses: StatusEntry[] = await StatusDao.getStatuses(ids,
+        [Constants.STATUS_KEY_CONNECTED, Constants.STATUS_KEY_INTENTION]);
+      const connectedMap: Map<number, boolean> = new Map<number, boolean>();
+      const intentionMap: Map<number, boolean> = new Map<number, boolean>();
+      for (const s of statuses) {
+        if (s.key === Constants.STATUS_KEY_CONNECTED) {
+          connectedMap.set(s.rowId, s.value);
+        } else if (s.key === Constants.STATUS_KEY_INTENTION) {
+          intentionMap.set(s.rowId, s.value);
+        }
+      }
       const exportRows: ExportRow[] = records.map((r: CallRecord): ExportRow => {
-        const row: ExportRow = { called: r.called, rawData: r.rawData };
+        const row: ExportRow = {
+          called: r.called,
+          connected: connectedMap.get(r.id) ?? false,
+          intention: intentionMap.get(r.id) ?? false,
+          rawData: r.rawData
+        };
         return row;
       });
-      const calledCol: string = meta.columnMapping['called'] ?? '';
-      const table: string[][] = ExportLogic.assemble(meta.allColumns, calledCol,
-        meta.calledValueFormat, exportRows);
+      const cols: ExportColumns = {
+        called: meta.columnMapping['called'] ?? '',
+        calledFormat: meta.calledValueFormat,
+        connected: meta.columnMapping['connected'] ?? '',
+        connectedFormat: meta.connectedValueFormat,
+        intention: meta.columnMapping['intention'] ?? '',
+        intentionFormat: meta.intentionValueFormat
+      };
+      const table: string[][] = ExportLogic.assemble(meta.allColumns, cols, exportRows);
       const isXlsx: boolean = meta.fileFormat === 'xlsx';
       const ext: string = isXlsx ? '.xlsx' : '.csv';
       const fileName: string = ExportLogic.buildFileName(meta.fileName, new Date(), ext);

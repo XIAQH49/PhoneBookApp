@@ -10,6 +10,8 @@ export class Constants {
 
   // 状态键（6.2 节可扩展状态模型；M3 增加 connected / intention）
   static readonly STATUS_KEY_CALLED: string = 'called';
+  static readonly STATUS_KEY_CONNECTED: string = 'connected';
+  static readonly STATUS_KEY_INTENTION: string = 'intention';
 
   // 配置键
   static readonly CONFIG_LAST_ASSIGNEE: string = 'last_assignee';
@@ -22,9 +24,10 @@ export class Constants {
   static readonly EXPORT_SCOPE_MINE: string = 'mine';
   static readonly EXPORT_SCOPE_ALL: string = 'all';
 
-  // 已打值导出格式
+  // 状态列导出格式（called 沿用；M3 增加 has_none）
   static readonly CALLED_FORMAT_YES_NO: string = 'yes_no';
   static readonly CALLED_FORMAT_ONE_BLANK: string = 'one_blank';
+  static readonly STATUS_FORMAT_HAS_NONE: string = 'has_none';
 
   // 列表分页大小
   static readonly PAGE_SIZE: number = 100;

@@ -117,12 +117,48 @@ export class DbHelper {
         Logger.error(TAG, 'executeSql failed: ' + (e as Error).message);
         throw e as Error;
       }
+      // M3 迁移：import_meta 增列（幂等；老库升级场景）
+      await DbHelper.migrateImportMeta(store);
       DbHelper.store = store;
       Logger.info(TAG, 'database ready');
     } catch (e) {
       // 失败后重置，允许后续重试（冷启动竞态/瞬时失败场景）
       DbHelper.initPromise = undefined;
       throw e as Error;
+    }
+  }
+
+  /** M3 迁移：import_meta 增加 connected_value_format / intention_value_format 列（幂等） */
+  private static async migrateImportMeta(store: relationalStore.RdbStore): Promise<void> {
+    const additions: string[] = [
+      "ALTER TABLE import_meta ADD COLUMN connected_value_format TEXT NOT NULL DEFAULT ''",
+      "ALTER TABLE import_meta ADD COLUMN intention_value_format TEXT NOT NULL DEFAULT ''"
+    ];
+    try {
+      const rs: relationalStore.ResultSet = await store.querySql('PRAGMA table_info(import_meta)', []);
+      const cols: string[] = [];
+      try {
+        while (rs.goToNextRow()) {
+          cols.push(rs.getString(rs.getColumnIndex('name')));
+        }
+      } finally {
+        try {
+          rs.close();
+        } catch (e) {
+          // 忽略关闭失败
+        }
+      }
+      for (const sql of additions) {
+        const col: string = sql.indexOf('connected_value_format') >= 0 ?
+          'connected_value_format' : 'intention_value_format';
+        if (cols.indexOf(col) < 0) {
+          await store.executeSql(sql);
+          Logger.info(TAG, 'migrated import_meta: ' + col);
+        }
+      }
+    } catch (e) {
+      // 迁移失败不阻塞初始化：新列缺失时格式默认为空串（yes_no 兜底），功能可降级
+      Logger.error(TAG, 'migrateImportMeta failed: ' + (e as Error).message);
     }
   }
 
