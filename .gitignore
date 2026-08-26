@@ -14,3 +14,8 @@
 # 内置名单文件随每次名单更新而变化（本地构建使用，不进版本库）
 entry/src/main/resources/rawfile/名单.xlsx
 entry/src/main/resources/rawfile/名单.csv
+# M2 ����Ự��ʱ�����ͼ/����/ʵʱ��־��
+m2_*.jpeg
+m2_*.log
+*_layout.json
+
