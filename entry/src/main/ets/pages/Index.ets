@@ -1,5 +1,4 @@
 import { common } from '@kit.AbilityKit';
-import { router } from '@kit.ArkUI';
 import { MainViewModel } from '../viewmodel/MainViewModel';
 import { CallRecord, CountResult } from '../model/CallRecord';
 import { Constants } from '../common/Constants';
@@ -18,6 +17,9 @@ import { FilterChips } from '../components/FilterChips';
 import { EmptyView } from '../components/EmptyView';
 import { NumberSheet } from '../components/NumberSheet';
 import { CallConfirmDialog } from '../components/CallConfirmDialog';
+import { ContactDetail } from './ContactDetail';
+import { Settings } from './Settings';
+import { AssigneePicker } from './AssigneePicker';
 
 const FILTER_ALL: number = -1;
 const FILTER_UNCALLED: number = 0;
@@ -26,10 +28,15 @@ const FILTER_CALLED: number = 1;
 /**
  * 主列表页（FR-3 / FR-4 / FR-6）：统计、搜索、筛选、分页列表、
  * 一键标记已打、导入/导出入口、唤起拨号。
+ *
+ * M2-2：router → Navigation 迁移。本页为导航宿主：子页（ContactDetail/Settings/
+ * AssigneePicker）均为 NavDestination，经 NavPathStack.pushPathByName 压栈；
+ * 子页 pop 携带结果触发 onPop 回调 → onSubPageReturn 重载数据。
  */
 @Entry
 @Component
 struct Index {
+  private pathStack: NavPathStack = new NavPathStack();
   vm: MainViewModel = new MainViewModel();
   @State assigneeName: string = '';
   @State statTotal: number = 0;
@@ -50,7 +57,6 @@ struct Index {
   private confirmName: string = '';
   private confirmNumber: string = '';
   private pendingMark: CallRecord | undefined = undefined;
-  private needReload: boolean = false;
   private searchTimer: number = -1;
   private confirmController: CustomDialogController | undefined = undefined;
   private initRetry: number = 0;
@@ -61,12 +67,7 @@ struct Index {
   }
 
   onPageShow(): void {
-    if (this.needReload) {
-      this.needReload = false;
-      this.vm.reloadAssignee().then(() => {
-        this.syncAll();
-      });
-    } else if (DbHelper.isReady()) {
+    if (DbHelper.isReady()) {
       // 实时刷新兜底：冷启动时异步数据到达/返回前台后，静默刷新统计与列表状态
       this.vm.refreshStats().then((r: CountResult): void => {
         this.statTotal = r.total;
@@ -346,21 +347,56 @@ struct Index {
     this.uiToast(result.message);
   }
 
-  // ---- 导航 ----
+  // ---- 导航（M2-2：NavPathStack 压栈；子页 pop 带结果触发 onPop）----
   goAssigneePicker(): void {
-    this.needReload = true;
-    router.pushUrl({ url: 'pages/AssigneePicker' });
+    const emptyParam: Record<string, Object> = {};
+    try {
+      this.pathStack.pushPathByName('AssigneePicker', emptyParam, (info: PopInfo) => {
+        this.onSubPageReturn();
+      });
+    } catch (e) {
+      this.uiToast('页面跳转失败');
+    }
   }
 
   goSettings(): void {
-    this.needReload = true;
-    router.pushUrl({ url: 'pages/Settings' });
+    const emptyParam: Record<string, Object> = {};
+    try {
+      this.pathStack.pushPathByName('Settings', emptyParam, (info: PopInfo) => {
+        this.onSubPageReturn();
+      });
+    } catch (e) {
+      this.uiToast('页面跳转失败');
+    }
   }
 
   goDetail(record: CallRecord): void {
-    this.needReload = true;
-    const opt: router.RouterOptions = { url: 'pages/ContactDetail', params: { 'id': record.id } };
-    router.pushUrl(opt);
+    const param: Record<string, number> = { 'id': record.id };
+    try {
+      this.pathStack.pushPathByName('ContactDetail', param, (info: PopInfo) => {
+        this.onSubPageReturn();
+      });
+    } catch (e) {
+      this.uiToast('页面跳转失败');
+    }
+  }
+
+  /** 子页返回：重载责任人视图与统计（责任人在选择页可能已切换） */
+  private onSubPageReturn(): void {
+    this.vm.reloadAssignee().then(() => {
+      this.syncAll();
+    });
+  }
+
+  @Builder
+  pageMap(name: string, param: Object) {
+    if (name === 'ContactDetail') {
+      ContactDetail()
+    } else if (name === 'Settings') {
+      Settings()
+    } else if (name === 'AssigneePicker') {
+      AssigneePicker()
+    }
   }
 
   // ---- UI ----
@@ -392,10 +428,10 @@ struct Index {
         Text(record.name !== '' ? record.name : '（无姓名）')
           .fontSize(16)
           .fontWeight(FontWeight.Medium)
-        Text(record.empNo !== '' ? `工号 ${record.empNo}` : '')
+        Text(record.empNo !== '' ? '工号 ' + record.empNo : '')
           .fontSize(12)
           .fontColor('#999999')
-        Text(record.phoneNumbers.length > 1 ? `手机 ×${record.phoneNumbers.length}` : record.phoneRaw)
+        Text(record.phoneNumbers.length > 1 ? '手机 ×' + record.phoneNumbers.length : record.phoneRaw)
           .fontSize(12)
           .fontColor('#666666')
       }
@@ -424,94 +460,101 @@ struct Index {
   }
 
   build() {
-    Column() {
-      // 标题栏
-      Row() {
-        Text('外呼名单')
-          .fontSize(20)
-          .fontWeight(FontWeight.Bold)
-        Blank()
-        Text(this.assigneeName === '' ? '未分配 ▾' : this.assigneeName + ' ▾')
-          .fontSize(14)
-          .fontColor('#007DFF')
-          .onClick(() => {
-            this.goAssigneePicker();
+    Navigation(this.pathStack) {
+      Column() {
+        // 标题栏
+        Row() {
+          Text('外呼名单')
+            .fontSize(20)
+            .fontWeight(FontWeight.Bold)
+          Blank()
+          Text(this.assigneeName === '' ? '未分配 ▾' : this.assigneeName + ' ▾')
+            .fontSize(14)
+            .fontColor('#007DFF')
+            .onClick(() => {
+              this.goAssigneePicker();
+            })
+          Text(' ⚙')
+            .fontSize(16)
+            .margin({ left: 12 })
+            .onClick(() => {
+              this.goSettings();
+            })
+        }
+        .width('100%')
+        .padding({ left: 16, right: 16, top: 12, bottom: 4 })
+
+        StatBar({
+          total: this.statTotal,
+          called: this.statCalled,
+          allTotal: this.allTotal,
+          allCalled: this.allCalled
+        })
+
+        TextInput({ placeholder: $r('app.string.search_hint'), text: this.searchText })
+          .height(40)
+          .margin({ left: 16, right: 16, top: 4, bottom: 4 })
+          .onChange((v: string) => {
+            this.onSearchChange(v);
           })
-        Text(' ⚙')
-          .fontSize(16)
-          .margin({ left: 12 })
-          .onClick(() => {
-            this.goSettings();
+
+        FilterChips({
+          selected: this.filterIdx,
+          onSelect: (i: number): void => {
+            this.onFilterChange(i);
+          }
+        })
+
+        if (!this.hasData && !this.importing) {
+          EmptyView({
+            tip: this.showSwitchHint ? $r('app.string.assignee_empty_tip') : $r('app.string.empty_import_tip')
           })
+        } else {
+          List() {
+            LazyForEach(this.vm, (record: CallRecord, index: number) => {
+              this.listItem(record, index)
+            }, (record: CallRecord) => record.id.toString())
+          }
+          .layoutWeight(1)
+          .divider({ strokeWidth: 0.5, color: '#F1F3F5' })
+          .onReachEnd(() => {
+            this.vm.loadMore();
+          })
+        }
+
+        Row() {
+          Button(this.importing ? this.importStage : '导入名单')
+            .fontSize(14)
+            .layoutWeight(1)
+            .enabled(!this.importing)
+            .onClick(() => {
+              this.onImport();
+            })
+          Button('内置名单')
+            .fontSize(14)
+            .layoutWeight(1)
+            .margin({ left: 8 })
+            .onClick(() => {
+              this.checkBuiltin(true);
+            })
+          Button(this.exporting ? '导出中…' : '导出结果')
+            .fontSize(14)
+            .layoutWeight(1)
+            .margin({ left: 8 })
+            .enabled(!this.exporting)
+            .onClick(() => {
+              this.onExport();
+            })
+        }
+        .width('100%')
+        .padding({ left: 16, right: 16, top: 8, bottom: 12 })
       }
       .width('100%')
-      .padding({ left: 16, right: 16, top: 12, bottom: 4 })
-
-      StatBar({
-        total: this.statTotal,
-        called: this.statCalled,
-        allTotal: this.allTotal,
-        allCalled: this.allCalled
-      })
-
-      TextInput({ placeholder: $r('app.string.search_hint'), text: this.searchText })
-        .height(40)
-        .margin({ left: 16, right: 16, top: 4, bottom: 4 })
-        .onChange((v: string) => {
-          this.onSearchChange(v);
-        })
-
-      FilterChips({
-        selected: this.filterIdx,
-        onSelect: (i: number): void => {
-          this.onFilterChange(i);
-        }
-      })
-
-      if (!this.hasData && !this.importing) {
-        EmptyView({
-          tip: this.showSwitchHint ? $r('app.string.assignee_empty_tip') : $r('app.string.empty_import_tip')
-        })
-      } else {
-        List() {
-          LazyForEach(this.vm, (record: CallRecord, index: number) => {
-            this.listItem(record, index)
-          }, (record: CallRecord) => record.id.toString())
-        }
-        .layoutWeight(1)
-        .divider({ strokeWidth: 0.5, color: '#F1F3F5' })
-        .onReachEnd(() => {
-          this.vm.loadMore();
-        })
-      }
-
-      Row() {
-        Button(this.importing ? this.importStage : '导入名单')
-          .fontSize(14)
-          .layoutWeight(1)
-          .enabled(!this.importing)
-          .onClick(() => {
-            this.onImport();
-          })
-        Button('内置名单')
-          .fontSize(14)
-          .layoutWeight(1)
-          .margin({ left: 8 })
-          .onClick(() => {
-            this.checkBuiltin(true);
-          })
-        Button(this.exporting ? '导出中…' : '导出结果')
-          .fontSize(14)
-          .layoutWeight(1)
-          .margin({ left: 8 })
-          .enabled(!this.exporting)
-          .onClick(() => {
-            this.onExport();
-          })
-      }
-      .width('100%')
-      .padding({ left: 16, right: 16, top: 8, bottom: 12 })
+      .height('100%')
     }
+    .mode(NavigationMode.Stack)
+    .hideTitleBar(true)
+    .navDestination(this.pageMap)
     .width('100%')
     .height('100%')
     .bindSheet($$this.showNumberSheet, this.numberSheetContent(), { height: 320, showClose: true })

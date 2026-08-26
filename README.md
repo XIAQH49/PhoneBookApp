@@ -17,6 +17,7 @@
 | `docs/07-M1验收记录.md` | M1 验收结论（真机全链路通过） |
 | `docs/08-v0.5-内置名单说明.md` | v0.5 内置名单（rawfile 打包名单，启动自动检测变更导入） |
 | `docs/09-M2-交接与启动包.md` | 新会话无缝衔接指南 + M2 范围（警告清零/Navigation/新 API） |
+| `docs/10-M2-实施与验收记录.md` | M2 实施记录（警告清零/Navigation/decodeToString）+ 真机回归清单 |
 
 ## 快速验证
 
@@ -51,4 +52,5 @@ libs/         SheetJS xlsx 社区版（Apache-2.0，vendor + 手写 .d.ts）
 
 - ✅ **M1 完成并通过真机验收**（2026-08-25，SGT-AL10；详见 `docs/07-M1验收记录.md`）
 - ✅ 核心闭环：导入(xlsx+csv)→筛选→唤起系统拨号并填号→标记→导出，0 权限、0 编译错误
-- ⏭️ 后续排期：M2 警告清零与 API 迁移、M3 打通/意向列维护（见验收记录第 5 节）
+- ✅ **M2 完成（2026-08-26）**：警告全部清零（clean 构建 0 错误 0 警告）、router→Navigation 迁移、TextDecoder.decode→decodeToString；详见 `docs/10-M2-实施与验收记录.md`（真机回归清单待设备执行）
+- ⏭️ 后续排期：M3 打通/意向列维护（见 docs/07 第 5 节）

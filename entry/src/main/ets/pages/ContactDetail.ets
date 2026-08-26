@@ -1,5 +1,4 @@
 import { common } from '@kit.AbilityKit';
-import { router } from '@kit.ArkUI';
 import { CallListDao } from '../database/CallListDao';
 import { MetaDao } from '../database/MetaDao';
 import { StatusDao } from '../database/StatusDao';
@@ -14,10 +13,13 @@ import { CallConfirmDialog } from '../components/CallConfirmDialog';
 
 /**
  * 条目详情页（FR-4 详情 / FR-5）：只读展示全部原始列 + 已打切换 + 拨打。
+ *
+ * M2-2：router → Navigation 迁移。本页为 NavDestination：条目 id 经
+ * pushPathByName 参数传入（onReady 读取）；返回统一 pop(带结果) 并拦截系统返回，
+ * 保证宿主 Index 的 onPop 回调触发。
  */
-@Entry
 @Component
-struct ContactDetail {
+export struct ContactDetail {
   @State record: CallRecord = new CallRecord();
   @State columns: string[] = [];
   @State calledCol: string = '';
@@ -28,11 +30,25 @@ struct ContactDetail {
   private confirmName: string = '';
   private confirmNumber: string = '';
   private confirmController: CustomDialogController | undefined = undefined;
-  private pendingMark: boolean = false;
+  private stack: NavPathStack | undefined = undefined;
 
-  async aboutToAppear(): Promise<void> {
-    const params = router.getParams() as Record<string, number>;
-    const id: number = params['id'] ?? 0;
+  /** NavDestination 就绪回调：记录栈引用并从导航参数读取条目 id */
+  private handleReady(ctx: NavDestinationContext): void {
+    this.stack = ctx.pathStack;
+    const param = ctx.pathInfo.param as Record<string, number>;
+    const id: number = param === undefined ? 0 : (param['id'] ?? 0);
+    this.loadRecord(id);
+  }
+
+  /** 返回上一页：pop 携带结果，触发宿主 onPop 回调 */
+  private popBack(): void {
+    const result: Record<string, boolean> = { 'back': true };
+    if (this.stack !== undefined) {
+      this.stack.pop(result);
+    }
+  }
+
+  async loadRecord(id: number): Promise<void> {
     const rec: CallRecord | undefined = await CallListDao.getById(id);
     if (rec === undefined) {
       this.loaded = false;
@@ -45,19 +61,12 @@ struct ContactDetail {
     this.loaded = true;
   }
 
-  onPageShow(): void {
-    if (this.pendingMark) {
-      this.pendingMark = false;
-      this.markCalled();
-    }
-  }
-
   async markCalled(): Promise<void> {
     await StatusDao.setCalled(this.record.id, true);
     this.record.called = true;
   }
 
-  // ---- 拨号（与主列表一致：确认框可关闭、返回自动标记）----
+  // ---- 拨号（与主列表一致：确认框可关闭；唤起即标记，R-7 拨出即算）----
   async onCall(): Promise<void> {
     if (this.record.phoneNumbers.length === 0) {
       this.uiToast('未识别到有效号码，可长按复制原文');
@@ -106,8 +115,8 @@ struct ContactDetail {
     }
     const result = await CallService.openDialer(ctx, number);
     if (result.success) {
-      // 唤起系统拨号即算已打（R-7）：返回 APP 后自动标记
-      this.pendingMark = true;
+      // 唤起系统拨号即算已打（R-7）：拨出即标记（不再依赖页面生命周期回调）
+      await this.markCalled();
     } else {
       this.uiToast(result.message);
     }
@@ -165,46 +174,56 @@ struct ContactDetail {
   }
 
   build() {
-    Column() {
-      Row() {
-        Text('← 返回')
-          .fontSize(16)
-          .onClick(() => {
-            router.back();
-          })
-        Blank()
-        Text('详情')
-          .fontSize(18)
-          .fontWeight(FontWeight.Bold)
-        Blank()
-        Text('    ')
+    NavDestination() {
+      Column() {
+        Row() {
+          Text('← 返回')
+            .fontSize(16)
+            .onClick(() => {
+              this.popBack();
+            })
+          Blank()
+          Text('详情')
+            .fontSize(18)
+            .fontWeight(FontWeight.Bold)
+          Blank()
+          Text('    ')
+        }
+        .width('100%')
+        .padding({ left: 16, right: 16, top: 12, bottom: 8 })
+
+        if (!this.loaded) {
+          Text('未找到该条数据').fontSize(14).margin({ top: 40 })
+        } else {
+          Scroll() {
+            Column() {
+              ForEach(this.columns, (col: string) => {
+                this.detailRow(col)
+              }, (col: string, i: number) => i + '_' + col)
+            }
+          }
+          .layoutWeight(1)
+          .width('100%')
+
+          Button($r('app.string.call'))
+            .width('80%')
+            .margin({ bottom: 16 })
+            .onClick(() => {
+              this.onCall();
+            })
+        }
       }
       .width('100%')
-      .padding({ left: 16, right: 16, top: 12, bottom: 8 })
-
-      if (!this.loaded) {
-        Text('未找到该条数据').fontSize(14).margin({ top: 40 })
-      } else {
-        Scroll() {
-          Column() {
-            ForEach(this.columns, (col: string) => {
-              this.detailRow(col)
-            }, (col: string, i: number) => `${i}_${col}`)
-          }
-        }
-        .layoutWeight(1)
-        .width('100%')
-
-        Button($r('app.string.call'))
-          .width('80%')
-          .margin({ bottom: 16 })
-          .onClick(() => {
-            this.onCall();
-          })
-      }
+      .height('100%')
     }
-    .width('100%')
-    .height('100%')
+    .hideTitleBar(true)
+    .onReady((ctx: NavDestinationContext) => {
+      this.handleReady(ctx);
+    })
+    .onBackPressed((): boolean => {
+      this.popBack();
+      return true;
+    })
     .bindSheet($$this.showNumberSheet, this.numberSheetContent(), { height: 320, showClose: true })
   }
 }

@@ -1,8 +1,5 @@
 {
   "src": [
-    "pages/Index",
-    "pages/ContactDetail",
-    "pages/Settings",
-    "pages/AssigneePicker"
+    "pages/Index"
   ]
 }

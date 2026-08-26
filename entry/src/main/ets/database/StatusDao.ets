@@ -2,11 +2,17 @@ import { relationalStore } from '@kit.ArkData';
 import { Constants } from '../common/Constants';
 import { DbHelper } from './DbHelper';
 import { CallListDao } from './CallListDao';
+import { Logger } from '../common/Logger';
+
+const TAG: string = 'StatusDao';
 
 /**
  * 状态键值表读写（设计规格 3.2 节双写规则）。
  * upsertCalledPlain 为纯操作（导入合并事务内使用）；
  * setCalled 自带事务（UI 标记/撤销场景单独调用）。
+ *
+ * M2-1：SDK 调用点统一 try/catch 包装（W-3 警告清零）；失败向上抛出带上下文的
+ * Error，由服务边界统一捕获，运行期语义不变。
  */
 export class StatusDao {
   /** 纯 upsert：无事务，调用方保证在事务内 */
@@ -15,20 +21,33 @@ export class StatusDao {
     const pred: relationalStore.RdbPredicates =
       new relationalStore.RdbPredicates(Constants.TABLE_CALL_STATUS);
     pred.equalTo('row_id', rowId).and().equalTo('status_key', Constants.STATUS_KEY_CALLED);
-    const rs: relationalStore.ResultSet = await store.query(pred, ['id']);
-    const exists: boolean = rs.goToNextRow();
-    rs.close();
-    if (exists) {
-      const vb: relationalStore.ValuesBucket = { 'value': value, 'updated_at': Date.now() };
-      await store.update(vb, pred);
-    } else {
-      const vb: relationalStore.ValuesBucket = {
-        'row_id': rowId,
-        'status_key': Constants.STATUS_KEY_CALLED,
-        'value': value,
-        'updated_at': Date.now()
-      };
-      await store.insert(Constants.TABLE_CALL_STATUS, vb);
+    let rs: relationalStore.ResultSet | undefined = undefined;
+    try {
+      rs = await store.query(pred, ['id']);
+      const exists: boolean = rs.goToNextRow();
+      if (exists) {
+        const vb: relationalStore.ValuesBucket = { 'value': value, 'updated_at': Date.now() };
+        await store.update(vb, pred);
+      } else {
+        const vb: relationalStore.ValuesBucket = {
+          'row_id': rowId,
+          'status_key': Constants.STATUS_KEY_CALLED,
+          'value': value,
+          'updated_at': Date.now()
+        };
+        await store.insert(Constants.TABLE_CALL_STATUS, vb);
+      }
+    } catch (e) {
+      Logger.error(TAG, 'upsertCalledPlain failed: ' + (e as Error).message);
+      throw new Error('upsertCalledPlain failed: ' + (e as Error).message);
+    } finally {
+      if (rs !== undefined) {
+        try {
+          rs.close();
+        } catch (e) {
+          // 关闭失败忽略：不影响写入结果
+        }
+      }
     }
   }
 
@@ -47,12 +66,25 @@ export class StatusDao {
     const pred: relationalStore.RdbPredicates =
       new relationalStore.RdbPredicates(Constants.TABLE_CALL_STATUS);
     pred.equalTo('row_id', rowId).and().equalTo('status_key', Constants.STATUS_KEY_CALLED);
-    const rs: relationalStore.ResultSet = await store.query(pred, ['value']);
-    let value: number = 0;
-    if (rs.goToNextRow()) {
-      value = rs.getLong(rs.getColumnIndex('value'));
+    let rs: relationalStore.ResultSet | undefined = undefined;
+    try {
+      rs = await store.query(pred, ['value']);
+      let value: number = 0;
+      if (rs.goToNextRow()) {
+        value = rs.getLong(rs.getColumnIndex('value'));
+      }
+      return value === 1;
+    } catch (e) {
+      Logger.error(TAG, 'getCalled failed: ' + (e as Error).message);
+      throw new Error('getCalled failed: ' + (e as Error).message);
+    } finally {
+      if (rs !== undefined) {
+        try {
+          rs.close();
+        } catch (e) {
+          // 关闭失败忽略：不影响查询结果
+        }
+      }
     }
-    rs.close();
-    return value === 1;
   }
 }

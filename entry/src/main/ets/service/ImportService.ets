@@ -219,15 +219,20 @@ export class ImportService {
     return name;
   }
 
-  /** util.TextDecoder 适配（T-2 真机验证 gbk 支持度） */
+  /**
+   * util.TextDecoder 适配（T-2 真机验证 gbk 支持度）。
+   * M2-3：decode 已弃用（since 9），改用 decodeToString（since 12）；
+   * 构造改用 TextDecoder.create（带参构造已弃用）。空输入兜底返回空串。
+   */
   private static decoderFactory(): DecoderFactory {
     return {
       create(encoding: string, fatal: boolean): Decoder {
         return {
           decode(data: Uint8Array): string {
             const opts: util.TextDecoderOptions = { fatal: fatal };
-            const td: util.TextDecoder = new util.TextDecoder(encoding, opts);
-            return td.decode(data);
+            const td: util.TextDecoder = util.TextDecoder.create(encoding, opts);
+            const result: string | undefined = td.decodeToString(data);
+            return result ?? '';
           }
         };
       }
