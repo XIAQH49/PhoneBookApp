@@ -523,7 +523,7 @@ struct Index {
           List() {
             LazyForEach(this.vm, (record: CallRecord, index: number) => {
               this.listItem(record, index)
-            }, (record: CallRecord) => record.id.toString())
+            }, (record: CallRecord) => record.id.toString() + '_' + this.vm.version())
           }
           .layoutWeight(1)
           .divider({ strokeWidth: 0.5, color: '#F1F3F5' })

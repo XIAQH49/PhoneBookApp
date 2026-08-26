@@ -18,6 +18,16 @@ export class MainViewModel implements IDataSource {
   statCalled: number = 0;
   private hasMore: boolean = true;
   private offset: number = 0;
+  private dataVersion: number = 0;
+
+  /**
+   * LazyForEach 键版本号：refreshList 全量替换数据时递增。
+   * 真机实测（SGT-AL10）：onDataReloaded 对键相同的条目复用既有视图、不重建，
+   * 导致返回子页后列表徽标/状态陈旧；将版本号并入条目键可强制全部重建。
+   */
+  version(): number {
+    return this.dataVersion;
+  }
 
   // ---- IDataSource ----
   totalCount(): number {
@@ -96,6 +106,7 @@ export class MainViewModel implements IDataSource {
     this.records = page;
     this.offset = page.length;
     this.hasMore = page.length >= Constants.PAGE_SIZE;
+    this.dataVersion++;
     this.notifyReload();
   }
 
