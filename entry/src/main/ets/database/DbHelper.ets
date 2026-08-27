@@ -170,9 +170,10 @@ export class DbHelper {
   private static readonly REPAIR_FLAG_KEY: string = 'repair_dup_done_v1';
 
   /**
-   * v0.5.4 一次性修复：并发导入竞态产生的完全重复行去重。
-   * 规则：同一 row_key 且 raw_data 完全一致的行视为重复，保留最小 id，
-   * 状态（called/connected/intention）取"或"合并到保留行后删除其余；
+   * v0.5.4 一次性修复：并发导入竞态产生的重复行对半去重。
+   * 规则：并发 bug 恰好产生两份（两次导入各一份），同一 row_key 且 raw_data 完全一致的组
+   * 按 id 升序（第一次导入在前）保留前半，与后半成对做状态"或"合并后删除后半；
+   * 源文件自身的重复行（如"没打通再次加进来"）原样保留，不合并；
    * 同键但内容不同的行不动（v0.5.3 丢行修复语义不回退）。
    * 用 app_config 标记守卫：正常路径仅执行一次（供测试直接调用 dedupeExactDuplicates）。
    */
@@ -386,23 +387,22 @@ export class DbHelper {
       if (ids.length <= 1) {
         continue;
       }
+      // 对半去重：并发导入 bug 恰好产生两份（两次导入各一份），
+      // 组内按 id 升序（第一次导入在前、第二次在后）保留前半，
+      // 与后半成对做状态"或"合并后删除后半——源文件自身的重复行原样保留。
+      const keepCount: number = Math.ceil(ids.length / 2);
+      const kept: number[] = [];
       const dupIds: number[] = [];
-      for (const id of ids) {
-        if (id !== g.keepId) {
-          dupIds.push(id);
+      for (let i: number = 0; i < ids.length; i++) {
+        if (i < keepCount) {
+          kept.push(ids[i]);
+        } else {
+          dupIds.push(ids[i]);
         }
       }
-      // 状态取"或"合并到保留行（组内每状态键取 MAX；先关结果集再写入，保持查询/写入分离约定）
-      const merges: StatusMerge[] = await DbHelper.findGroupStatusOr(store, ids);
-      for (const m of merges) {
-        await DbHelper.safeExecuteSql(store,
-          'INSERT OR REPLACE INTO call_status(row_id, status_key, value, updated_at) VALUES(?, ?, ?, ?)',
-          [g.keepId, m.key, m.v, Date.now()]);
+      for (let i: number = 0; i < dupIds.length; i++) {
+        await DbHelper.mergePairStatus(store, kept[i % kept.length], dupIds[i]);
       }
-      // called 缓存列同步（OR 结果）
-      await DbHelper.safeExecuteSql(store,
-        'UPDATE call_list SET called = ?, updated_at = ? WHERE id = ?',
-        [g.calledOr, Date.now(), g.keepId]);
       // 删除重复行及其状态
       const dupPh: string = dupIds.map((): string => '?').join(',');
       await DbHelper.safeExecuteSql(store,
@@ -420,14 +420,12 @@ export class DbHelper {
     let rs: relationalStore.ResultSet | undefined = undefined;
     try {
       rs = await store.querySql(
-        'SELECT row_key, raw_data, MIN(id) AS keep_id, MAX(called) AS called_or, COUNT(*) AS cnt ' +
+        'SELECT row_key, raw_data, COUNT(*) AS cnt ' +
         'FROM call_list GROUP BY row_key, raw_data HAVING cnt > 1', []);
       while (rs.goToNextRow()) {
         const g: DupGroup = new DupGroup();
         g.rowKey = rs.getString(rs.getColumnIndex('row_key'));
         g.rawData = rs.getString(rs.getColumnIndex('raw_data'));
-        g.keepId = rs.getLong(rs.getColumnIndex('keep_id'));
-        g.calledOr = rs.getLong(rs.getColumnIndex('called_or'));
         groups.push(g);
       }
       return groups;
@@ -451,7 +449,7 @@ export class DbHelper {
     let rs: relationalStore.ResultSet | undefined = undefined;
     try {
       rs = await store.querySql(
-        'SELECT id FROM call_list WHERE row_key = ? AND raw_data = ?',
+        'SELECT id FROM call_list WHERE row_key = ? AND raw_data = ? ORDER BY id ASC',
         [g.rowKey, g.rawData]);
       while (rs.goToNextRow()) {
         ids.push(rs.getLong(rs.getColumnIndex('id')));
@@ -471,32 +469,63 @@ export class DbHelper {
     }
   }
 
-  /** 查询组内各状态键的"或"值 */
-  private static async findGroupStatusOr(store: relationalStore.RdbStore, ids: number[]): Promise<StatusMerge[]> {
-    const merges: StatusMerge[] = [];
-    const ph: string = ids.map((): string => '?').join(',');
-    let rs: relationalStore.ResultSet | undefined = undefined;
+  /** 成对状态"或"合并：把 removedId 的状态并入 keptId（called 缓存列 + call_status 三键） */
+  private static async mergePairStatus(store: relationalStore.RdbStore,
+    keptId: number, removedId: number): Promise<void> {
+    // called 缓存列 OR
+    let rc: number = 0;
+    let rcRs: relationalStore.ResultSet | undefined = undefined;
     try {
-      rs = await store.querySql(
-        'SELECT status_key, MAX(value) AS v FROM call_status WHERE row_id IN (' + ph + ') ' +
-        'GROUP BY status_key', ids);
-      while (rs.goToNextRow()) {
-        const m: StatusMerge = new StatusMerge();
-        m.key = rs.getString(rs.getColumnIndex('status_key'));
-        m.v = rs.getLong(rs.getColumnIndex('v'));
-        merges.push(m);
+      rcRs = await store.querySql('SELECT called FROM call_list WHERE id = ?', [removedId]);
+      if (rcRs.goToNextRow()) {
+        rc = rcRs.getLong(rcRs.getColumnIndex('called'));
       }
-      return merges;
     } catch (e) {
-      Logger.error(TAG, 'findGroupStatusOr failed: ' + (e as Error).message);
-      throw new Error('findGroupStatusOr failed: ' + (e as Error).message);
+      Logger.error(TAG, 'mergePairStatus read called failed: ' + (e as Error).message);
+      throw new Error('mergePairStatus read called failed: ' + (e as Error).message);
     } finally {
-      if (rs !== undefined) {
+      if (rcRs !== undefined) {
         try {
-          rs.close();
+          rcRs.close();
         } catch (e) {
           // 忽略关闭失败
         }
+      }
+    }
+    if (rc === 1) {
+      await DbHelper.safeExecuteSql(store,
+        'UPDATE call_list SET called = 1, updated_at = ? WHERE id = ?',
+        [Date.now(), keptId]);
+    }
+    // call_status：removed 行值为 1 的状态键并入 kept
+    const statusRows: StatusMerge[] = [];
+    let stRs: relationalStore.ResultSet | undefined = undefined;
+    try {
+      stRs = await store.querySql(
+        'SELECT status_key, value FROM call_status WHERE row_id = ?', [removedId]);
+      while (stRs.goToNextRow()) {
+        const m: StatusMerge = new StatusMerge();
+        m.key = stRs.getString(stRs.getColumnIndex('status_key'));
+        m.v = stRs.getLong(stRs.getColumnIndex('value'));
+        statusRows.push(m);
+      }
+    } catch (e) {
+      Logger.error(TAG, 'mergePairStatus read status failed: ' + (e as Error).message);
+      throw new Error('mergePairStatus read status failed: ' + (e as Error).message);
+    } finally {
+      if (stRs !== undefined) {
+        try {
+          stRs.close();
+        } catch (e) {
+          // 忽略关闭失败
+        }
+      }
+    }
+    for (const m of statusRows) {
+      if (m.v === 1) {
+        await DbHelper.safeExecuteSql(store,
+          'INSERT OR REPLACE INTO call_status(row_id, status_key, value, updated_at) VALUES(?, ?, 1, ?)',
+          [keptId, m.key, Date.now()]);
       }
     }
   }
@@ -559,8 +588,6 @@ export class DbHelper {
 class DupGroup {
   rowKey: string = '';
   rawData: string = '';
-  keepId: number = 0;
-  calledOr: number = 0;
 }
 
 /** v0.5.4 状态"或"合并条目 */

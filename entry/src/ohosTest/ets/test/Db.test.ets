@@ -74,11 +74,12 @@ export default function dbTest() {
       expect(await ConfigDao.get('db_test_key')).assertEqual('v1');
     });
 
-    it('v054_dedupe_exact_duplicates', 0, async () => {
-      // v0.5.4 修复验证：同 row_key + raw_data 的完全重复行去重，状态取"或"保留；
-      // 同键但 raw_data 不同的行必须保留（v0.5.3 丢行修复语义）。
+    it('v054_dedupe_halves_race_duplicates', 0, async () => {
+      // v0.5.4 修复验证（对半去重）：并发导入产生两份时每组保留一半；
+      // 源文件自身重复的行（文件内出现两次 × 两次导入 = 4 份）保留 2 份；
+      // 状态与后半成对取"或"；同键但 raw_data 不同的行必须保留（v0.5.3 语义）。
       const store = DbHelper.getStore();
-      // 构造两对完全重复行（并发导入竞态产物）
+      // A 组：文件内 1 次 × 导入 2 次 = 2 份 → 保留 1
       const recA1: CallRecord = makeRecord('DUP001');
       recA1.rawData = { '姓名': '测试A', '备注': 'x' };
       const recA2: CallRecord = makeRecord('DUP001');
@@ -88,23 +89,39 @@ export default function dbTest() {
       await StatusDao.setCalled(idA1, true);
       await StatusDao.setCalled(idA2, false);
       await StatusDao.setValue(idA2, 'connected', true);
+      // B 组：文件内 2 次 × 导入 2 次 = 4 份 → 保留 2，成对取"或"
+      const idsB: number[] = [];
+      for (let i = 0; i < 4; i++) {
+        const r: CallRecord = makeRecord('DUP002');
+        r.rawData = { '姓名': '测试B', '备注': 'y' };
+        idsB.push(await CallListDao.insertPlain(r));
+      }
+      // 第一次导入的两份（idsB[0], idsB[1]）：一份已打；第二次导入的两份未打
+      await StatusDao.setCalled(idsB[0], true);
       // 同键但内容不同：必须保留
-      const recB1: CallRecord = makeRecord('DUP001');
-      recB1.rawData = { '姓名': '测试B', '备注': 'y' };
-      const idB1: number = await CallListDao.insertPlain(recB1);
+      const recC1: CallRecord = makeRecord('DUP001');
+      recC1.rawData = { '姓名': '测试C', '备注': 'z' };
+      const idC1: number = await CallListDao.insertPlain(recC1);
       const before: number = await CallListDao.countAllActive();
-      expect(before).assertEqual(3);
+      expect(before).assertEqual(7);
       await DbHelper.runInTransaction(async () => {
         await DbHelper.dedupeExactDuplicates(store);
       });
       const after: number = await CallListDao.countAllActive();
-      expect(after).assertEqual(2);
-      // A 组保留最小 id（idA1），called 取"或"=true，connected 合并=true
-      const kept: CallRecord | undefined = await CallListDao.getById(idA1);
-      expect(kept !== undefined && kept.called).assertTrue();
+      expect(after).assertEqual(4);
+      // A 组保留 1（idA1）：called 取"或"=true，connected 合并=true
+      const keptA: CallRecord | undefined = await CallListDao.getById(idA1);
+      expect(keptA !== undefined && keptA.called).assertTrue();
       expect(await StatusDao.getValue(idA1, 'connected')).assertTrue();
-      // B 行未被误删
-      expect((await CallListDao.getById(idB1)) !== undefined).assertTrue();
+      // B 组保留 2（idsB[0], idsB[1]）：成对 OR——idsB[0] 与 idsB[2] 配对 → called=true
+      expect((await CallListDao.getById(idsB[0])) !== undefined).assertTrue();
+      expect((await CallListDao.getById(idsB[1])) !== undefined).assertTrue();
+      const keptB0: CallRecord | undefined = await CallListDao.getById(idsB[0]);
+      expect(keptB0 !== undefined && keptB0.called).assertTrue();
+      const keptB1: CallRecord | undefined = await CallListDao.getById(idsB[1]);
+      expect(keptB1 !== undefined && !keptB1.called).assertTrue();
+      // C 行未被误删
+      expect((await CallListDao.getById(idC1)) !== undefined).assertTrue();
     });
   });
 }
