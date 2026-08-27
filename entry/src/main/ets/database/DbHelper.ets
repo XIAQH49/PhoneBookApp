@@ -119,6 +119,8 @@ export class DbHelper {
       }
       // M3 迁移：import_meta 增列（幂等；老库升级场景）
       await DbHelper.migrateImportMeta(store);
+      // v0.5.4 一次性修复：并发导入竞态产生的完全重复行去重（标记守卫，仅执行一次）
+      await DbHelper.repairDuplicateRows(store);
       DbHelper.store = store;
       Logger.info(TAG, 'database ready');
     } catch (e) {
@@ -159,6 +161,208 @@ export class DbHelper {
     } catch (e) {
       // 迁移失败不阻塞初始化：新列缺失时格式默认为空串（yes_no 兜底），功能可降级
       Logger.error(TAG, 'migrateImportMeta failed: ' + (e as Error).message);
+    }
+  }
+
+  /** v0.5.4 修复标记键 */
+  private static readonly REPAIR_FLAG_KEY: string = 'repair_dup_done_v1';
+
+  /**
+   * v0.5.4 一次性修复：并发导入竞态产生的完全重复行去重。
+   * 规则：同一 row_key 且 raw_data 完全一致的行视为重复，保留最小 id，
+   * 状态（called/connected/intention）取"或"合并到保留行后删除其余；
+   * 同键但内容不同的行不动（v0.5.3 丢行修复语义不回退）。
+   * 用 app_config 标记守卫：正常路径仅执行一次（供测试直接调用 dedupeExactDuplicates）。
+   */
+  static async repairDuplicateRows(store: relationalStore.RdbStore): Promise<void> {
+    try {
+      let done: boolean = false;
+      let flagRs: relationalStore.ResultSet | undefined = undefined;
+      try {
+        flagRs = await store.querySql(
+          'SELECT value FROM app_config WHERE key = ?', [DbHelper.REPAIR_FLAG_KEY]);
+        if (flagRs.goToNextRow()) {
+          done = flagRs.getString(flagRs.getColumnIndex('value')) === '1';
+        }
+      } finally {
+        if (flagRs !== undefined) {
+          try {
+            flagRs.close();
+          } catch (e) {
+            // 忽略关闭失败
+          }
+        }
+      }
+      if (done) {
+        return;
+      }
+      // 注意：初始化阶段 DbHelper.store 尚未赋值，不能走 runInTransaction，直接开事务
+      try {
+        store.beginTransaction();
+      } catch (e) {
+        Logger.error(TAG, 'repair beginTransaction failed: ' + (e as Error).message);
+        throw e as Error;
+      }
+      try {
+        const removed: number = await DbHelper.dedupeExactDuplicates(store);
+        if (removed > 0) {
+          Logger.info(TAG, 'repaired duplicate rows: removed=' + removed);
+        }
+        await store.executeSql(
+          'INSERT OR REPLACE INTO app_config(key, value) VALUES(?, ?)',
+          [DbHelper.REPAIR_FLAG_KEY, '1']);
+      } catch (e) {
+        try {
+          store.rollBack();
+        } catch (rb) {
+          // 忽略回滚失败
+        }
+        throw e as Error;
+      }
+      try {
+        store.commit();
+      } catch (e) {
+        Logger.error(TAG, 'repair commit failed: ' + (e as Error).message);
+        throw e as Error;
+      }
+    } catch (e) {
+      // 修复失败不阻塞初始化：重复行问题可后续重试（标记未写入则下次启动再试）
+      Logger.error(TAG, 'repairDuplicateRows failed: ' + (e as Error).message);
+    }
+  }
+
+  /** 去重核心（纯操作，调用方保证在事务内）：返回删除的行数 */
+  static async dedupeExactDuplicates(store: relationalStore.RdbStore): Promise<number> {
+    const groups: DupGroup[] = await DbHelper.findDupGroups(store);
+    let removed: number = 0;
+    for (const g of groups) {
+      const ids: number[] = await DbHelper.findGroupIds(store, g);
+      if (ids.length <= 1) {
+        continue;
+      }
+      const dupIds: number[] = [];
+      for (const id of ids) {
+        if (id !== g.keepId) {
+          dupIds.push(id);
+        }
+      }
+      // 状态取"或"合并到保留行（组内每状态键取 MAX；先关结果集再写入，保持查询/写入分离约定）
+      const merges: StatusMerge[] = await DbHelper.findGroupStatusOr(store, ids);
+      for (const m of merges) {
+        await DbHelper.safeExecuteSql(store,
+          'INSERT OR REPLACE INTO call_status(row_id, status_key, value, updated_at) VALUES(?, ?, ?, ?)',
+          [g.keepId, m.key, m.v, Date.now()]);
+      }
+      // called 缓存列同步（OR 结果）
+      await DbHelper.safeExecuteSql(store,
+        'UPDATE call_list SET called = ?, updated_at = ? WHERE id = ?',
+        [g.calledOr, Date.now(), g.keepId]);
+      // 删除重复行及其状态
+      const dupPh: string = dupIds.map((): string => '?').join(',');
+      await DbHelper.safeExecuteSql(store,
+        'DELETE FROM call_status WHERE row_id IN (' + dupPh + ')', dupIds);
+      await DbHelper.safeExecuteSql(store,
+        'DELETE FROM call_list WHERE id IN (' + dupPh + ')', dupIds);
+      removed += dupIds.length;
+    }
+    return removed;
+  }
+
+  /** 查询完全重复分组（同 row_key + raw_data 且 in_file=1 的多行组） */
+  private static async findDupGroups(store: relationalStore.RdbStore): Promise<DupGroup[]> {
+    const groups: DupGroup[] = [];
+    let rs: relationalStore.ResultSet | undefined = undefined;
+    try {
+      rs = await store.querySql(
+        'SELECT row_key, raw_data, MIN(id) AS keep_id, MAX(called) AS called_or, COUNT(*) AS cnt ' +
+        'FROM call_list WHERE in_file = 1 GROUP BY row_key, raw_data HAVING cnt > 1', []);
+      while (rs.goToNextRow()) {
+        const g: DupGroup = new DupGroup();
+        g.rowKey = rs.getString(rs.getColumnIndex('row_key'));
+        g.rawData = rs.getString(rs.getColumnIndex('raw_data'));
+        g.keepId = rs.getLong(rs.getColumnIndex('keep_id'));
+        g.calledOr = rs.getLong(rs.getColumnIndex('called_or'));
+        groups.push(g);
+      }
+      return groups;
+    } catch (e) {
+      Logger.error(TAG, 'findDupGroups failed: ' + (e as Error).message);
+      throw new Error('findDupGroups failed: ' + (e as Error).message);
+    } finally {
+      if (rs !== undefined) {
+        try {
+          rs.close();
+        } catch (e) {
+          // 忽略关闭失败
+        }
+      }
+    }
+  }
+
+  /** 查询组内全部行 id */
+  private static async findGroupIds(store: relationalStore.RdbStore, g: DupGroup): Promise<number[]> {
+    const ids: number[] = [];
+    let rs: relationalStore.ResultSet | undefined = undefined;
+    try {
+      rs = await store.querySql(
+        'SELECT id FROM call_list WHERE in_file = 1 AND row_key = ? AND raw_data = ?',
+        [g.rowKey, g.rawData]);
+      while (rs.goToNextRow()) {
+        ids.push(rs.getLong(rs.getColumnIndex('id')));
+      }
+      return ids;
+    } catch (e) {
+      Logger.error(TAG, 'findGroupIds failed: ' + (e as Error).message);
+      throw new Error('findGroupIds failed: ' + (e as Error).message);
+    } finally {
+      if (rs !== undefined) {
+        try {
+          rs.close();
+        } catch (e) {
+          // 忽略关闭失败
+        }
+      }
+    }
+  }
+
+  /** 查询组内各状态键的"或"值 */
+  private static async findGroupStatusOr(store: relationalStore.RdbStore, ids: number[]): Promise<StatusMerge[]> {
+    const merges: StatusMerge[] = [];
+    const ph: string = ids.map((): string => '?').join(',');
+    let rs: relationalStore.ResultSet | undefined = undefined;
+    try {
+      rs = await store.querySql(
+        'SELECT status_key, MAX(value) AS v FROM call_status WHERE row_id IN (' + ph + ') ' +
+        'GROUP BY status_key', ids);
+      while (rs.goToNextRow()) {
+        const m: StatusMerge = new StatusMerge();
+        m.key = rs.getString(rs.getColumnIndex('status_key'));
+        m.v = rs.getLong(rs.getColumnIndex('v'));
+        merges.push(m);
+      }
+      return merges;
+    } catch (e) {
+      Logger.error(TAG, 'findGroupStatusOr failed: ' + (e as Error).message);
+      throw new Error('findGroupStatusOr failed: ' + (e as Error).message);
+    } finally {
+      if (rs !== undefined) {
+        try {
+          rs.close();
+        } catch (e) {
+          // 忽略关闭失败
+        }
+      }
+    }
+  }
+
+  /** executeSql 包装（W-3 约定：失败抛带上下文 Error） */
+  private static async safeExecuteSql(store: relationalStore.RdbStore, sql: string,
+    args: relationalStore.ValueType[]): Promise<void> {
+    try {
+      await store.executeSql(sql, args);
+    } catch (e) {
+      Logger.error(TAG, 'safeExecuteSql failed: ' + (e as Error).message);
+      throw new Error('safeExecuteSql failed: ' + (e as Error).message);
     }
   }
 
@@ -203,4 +407,18 @@ export class DbHelper {
       throw e as Error;
     }
   }
+}
+
+/** v0.5.4 重复行分组信息 */
+class DupGroup {
+  rowKey: string = '';
+  rawData: string = '';
+  keepId: number = 0;
+  calledOr: number = 0;
+}
+
+/** v0.5.4 状态"或"合并条目 */
+class StatusMerge {
+  key: string = '';
+  v: number = 0;
 }

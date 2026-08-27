@@ -35,6 +35,14 @@ export interface ProgressInfo {
  * → ImportLogic 构建 → MergeService 合并计划 → 单事务入库 + active 切换。
  */
 export class ImportService {
+  /**
+   * 导入串行队列（v0.5.4 防重入修复）：
+   * 并发触发（启动自动检测 + 手动点击/再次拉起）会导致两次合并都基于同一旧快照，
+   * 全部行重复插入（真机实测 2324 行 → 4648 行）。所有导入经此队列串行执行，
+   * 前一次完成后（快照与哈希均已落库）再执行下一次。
+   */
+  private static importChain: Promise<void> = Promise.resolve();
+
   /** 从文件选择器选取文件并导入（UI 入口） */
   static async pickAndImport(context: common.UIAbilityContext,
     onProgress?: (p: ProgressInfo) => void): Promise<ImportResult> {
@@ -72,8 +80,21 @@ export class ImportService {
     }
   }
 
-  /** 从字节导入（内置文件/内存数据共用核心：解码 → 解析 → 合并入库） */
-  static async importFromBytes(bytes: Uint8Array, fileName: string,
+  /** 从字节导入（内置文件/内存数据共用核心：解码 → 解析 → 合并入库）。
+   *  经串行队列执行（v0.5.4：并发导入防重入）。 */
+  static importFromBytes(bytes: Uint8Array, fileName: string,
+    onProgress?: (p: ProgressInfo) => void): Promise<ImportResult> {
+    const run: () => Promise<ImportResult> = (): Promise<ImportResult> => {
+      return ImportService.doImportFromBytes(bytes, fileName, onProgress);
+    };
+    const next: Promise<ImportResult> = ImportService.importChain.then(run, run);
+    // 队列自身吞掉失败，保证后续导入不受前一次失败影响
+    ImportService.importChain = next.then((): void => {}, (): void => {});
+    return next;
+  }
+
+  /** 导入核心实现（解码 → 解析 → 合并入库），调用方保证串行 */
+  private static async doImportFromBytes(bytes: Uint8Array, fileName: string,
     onProgress?: (p: ProgressInfo) => void): Promise<ImportResult> {
     try {
       if (!DbHelper.isReady()) {

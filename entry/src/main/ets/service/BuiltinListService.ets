@@ -18,6 +18,9 @@ const BUILTIN_CANDIDATES: string[] = ['名单.xlsx', '名单.csv'];
  * 合并规则同 FR-2 状态取"或"）；亦可在主页点"内置名单"手动导入。
  */
 export class BuiltinListService {
+  /** 单飞守卫（v0.5.4）：并发触发共享同一次内置导入，避免冗余二次合并 */
+  private static importPromise: Promise<ImportResult | undefined> | undefined = undefined;
+
   /** 查找内置名单文件（返回文件名；不存在返回空串） */
   static async findBuiltin(context: common.UIAbilityContext): Promise<string> {
     try {
@@ -46,6 +49,23 @@ export class BuiltinListService {
     if (name === '') {
       return undefined;
     }
+    // v0.5.4 单飞：并发调用（启动自动检测 + 手动按钮）等待同一次导入，防重复导入
+    if (BuiltinListService.importPromise !== undefined) {
+      return await BuiltinListService.importPromise;
+    }
+    const p: Promise<ImportResult | undefined> =
+      BuiltinListService.doImportIfChanged(context, name, force);
+    BuiltinListService.importPromise = p;
+    try {
+      return await p;
+    } finally {
+      BuiltinListService.importPromise = undefined;
+    }
+  }
+
+  /** 内置导入核心（调用方保证单飞） */
+  private static async doImportIfChanged(context: common.UIAbilityContext, name: string,
+    force: boolean): Promise<ImportResult | undefined> {
     try {
       const bytes: Uint8Array = await context.resourceManager.getRawFileContent(name);
       const hash: string = MergeService.hashBytes(bytes);
