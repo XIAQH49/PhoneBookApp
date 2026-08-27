@@ -121,6 +121,8 @@ export class DbHelper {
       await DbHelper.migrateImportMeta(store);
       // v0.5.4 一次性修复：并发导入竞态产生的完全重复行去重（标记守卫，仅执行一次）
       await DbHelper.repairDuplicateRows(store);
+      // v0.5.4 二次修复：恢复被测试/误导入批次遮蔽的真实数据（标记守卫，仅执行一次）
+      await DbHelper.restoreRemovedBatch(store);
       DbHelper.store = store;
       Logger.info(TAG, 'database ready');
     } catch (e) {
@@ -231,6 +233,150 @@ export class DbHelper {
     }
   }
 
+  /** v0.5.4 二次修复标记键 */
+  private static readonly RESTORE_FLAG_KEY: string = 'restore_removed_batch_v1';
+
+  /**
+   * v0.5.4 二次修复：恢复"文件中已移除"（in_file=0）的真实数据批次。
+   * 场景：并发导入 bug 修复期间，误导入的测试批次把真实批次标记为移除（隐藏），
+   * 用户没有源文件可重新导入。规则：
+   *  1. 取 in_file=0 行数最多的 meta 批次（真实数据批次）；
+   *  2. 若当前生效批次行数远小于恢复批次（<=100 且 <恢复批次/10），判定为误导入
+   *     的小测试批次，删除其行/状态/元信息（避免垃圾行混入列表）；
+   *  3. 恢复批次置 in_file=1，切换 import_meta.active。
+   * 标记守卫：仅执行一次；无隐藏批次时仅写标记。
+   */
+  static async restoreRemovedBatch(store: relationalStore.RdbStore): Promise<void> {
+    try {
+      let done: boolean = false;
+      let flagRs: relationalStore.ResultSet | undefined = undefined;
+      try {
+        flagRs = await store.querySql(
+          'SELECT value FROM app_config WHERE key = ?', [DbHelper.RESTORE_FLAG_KEY]);
+        if (flagRs.goToNextRow()) {
+          done = flagRs.getString(flagRs.getColumnIndex('value')) === '1';
+        }
+      } finally {
+        if (flagRs !== undefined) {
+          try {
+            flagRs.close();
+          } catch (e) {
+            // 忽略关闭失败
+          }
+        }
+      }
+      if (done) {
+        return;
+      }
+      try {
+        store.beginTransaction();
+      } catch (e) {
+        Logger.error(TAG, 'restore beginTransaction failed: ' + (e as Error).message);
+        throw e as Error;
+      }
+      try {
+        // 1. 最大的隐藏批次
+        let hiddenMetaId: number = -1;
+        let hiddenCount: number = 0;
+        let hiddenRs: relationalStore.ResultSet | undefined = undefined;
+        try {
+          hiddenRs = await store.querySql(
+            'SELECT meta_id, COUNT(*) AS cnt FROM call_list WHERE in_file = 0 ' +
+            'GROUP BY meta_id ORDER BY cnt DESC LIMIT 1', []);
+          if (hiddenRs.goToNextRow()) {
+            hiddenMetaId = hiddenRs.getLong(hiddenRs.getColumnIndex('meta_id'));
+            hiddenCount = hiddenRs.getLong(hiddenRs.getColumnIndex('cnt'));
+          }
+        } finally {
+          if (hiddenRs !== undefined) {
+            try {
+              hiddenRs.close();
+            } catch (e) {
+              // 忽略关闭失败
+            }
+          }
+        }
+        // 2. 当前生效批次与行数
+        let activeMetaId: number = -1;
+        let metaRs: relationalStore.ResultSet | undefined = undefined;
+        try {
+          metaRs = await store.querySql(
+            'SELECT id FROM import_meta WHERE active = 1 LIMIT 1', []);
+          if (metaRs.goToNextRow()) {
+            activeMetaId = metaRs.getLong(metaRs.getColumnIndex('id'));
+          }
+        } finally {
+          if (metaRs !== undefined) {
+            try {
+              metaRs.close();
+            } catch (e) {
+              // 忽略关闭失败
+            }
+          }
+        }
+        let activeCount: number = 0;
+        if (activeMetaId > 0) {
+          let cntRs: relationalStore.ResultSet | undefined = undefined;
+          try {
+            cntRs = await store.querySql(
+              'SELECT COUNT(*) AS cnt FROM call_list WHERE meta_id = ?', [activeMetaId]);
+            if (cntRs.goToNextRow()) {
+              activeCount = cntRs.getLong(cntRs.getColumnIndex('cnt'));
+            }
+          } finally {
+            if (cntRs !== undefined) {
+              try {
+                cntRs.close();
+              } catch (e) {
+                // 忽略关闭失败
+              }
+            }
+          }
+        }
+        // 3. 生效批次判定为误导入的小测试批次时清理之（含状态与元信息）
+        if (activeMetaId > 0 && hiddenCount > 0 && activeCount <= 100 &&
+          activeCount * 10 < hiddenCount) {
+          await store.executeSql(
+            'DELETE FROM call_status WHERE row_id IN (SELECT id FROM call_list WHERE meta_id = ?)',
+            [activeMetaId]);
+          await store.executeSql('DELETE FROM call_list WHERE meta_id = ?', [activeMetaId]);
+          await store.executeSql('DELETE FROM import_meta WHERE id = ?', [activeMetaId]);
+          Logger.info(TAG, 'removed mistaken test batch: metaId=' + activeMetaId +
+            ', rows=' + activeCount);
+        }
+        // 4. 恢复隐藏批次并切换生效批次
+        if (hiddenMetaId > 0) {
+          await store.executeSql(
+            'UPDATE call_list SET in_file = 1, updated_at = ? WHERE meta_id = ? AND in_file = 0',
+            [Date.now(), hiddenMetaId]);
+          await store.executeSql('UPDATE import_meta SET active = 0 WHERE active = 1');
+          await store.executeSql('UPDATE import_meta SET active = 1 WHERE id = ?', [hiddenMetaId]);
+          Logger.info(TAG, 'restored removed batch: metaId=' + hiddenMetaId +
+            ', rows=' + hiddenCount);
+        }
+        await store.executeSql(
+          'INSERT OR REPLACE INTO app_config(key, value) VALUES(?, ?)',
+          [DbHelper.RESTORE_FLAG_KEY, '1']);
+      } catch (e) {
+        try {
+          store.rollBack();
+        } catch (rb) {
+          // 忽略回滚失败
+        }
+        throw e as Error;
+      }
+      try {
+        store.commit();
+      } catch (e) {
+        Logger.error(TAG, 'restore commit failed: ' + (e as Error).message);
+        throw e as Error;
+      }
+    } catch (e) {
+      // 恢复失败不阻塞初始化：标记未写入则下次启动再试
+      Logger.error(TAG, 'restoreRemovedBatch failed: ' + (e as Error).message);
+    }
+  }
+
   /** 去重核心（纯操作，调用方保证在事务内）：返回删除的行数 */
   static async dedupeExactDuplicates(store: relationalStore.RdbStore): Promise<number> {
     const groups: DupGroup[] = await DbHelper.findDupGroups(store);
@@ -275,7 +421,7 @@ export class DbHelper {
     try {
       rs = await store.querySql(
         'SELECT row_key, raw_data, MIN(id) AS keep_id, MAX(called) AS called_or, COUNT(*) AS cnt ' +
-        'FROM call_list WHERE in_file = 1 GROUP BY row_key, raw_data HAVING cnt > 1', []);
+        'FROM call_list GROUP BY row_key, raw_data HAVING cnt > 1', []);
       while (rs.goToNextRow()) {
         const g: DupGroup = new DupGroup();
         g.rowKey = rs.getString(rs.getColumnIndex('row_key'));
@@ -305,7 +451,7 @@ export class DbHelper {
     let rs: relationalStore.ResultSet | undefined = undefined;
     try {
       rs = await store.querySql(
-        'SELECT id FROM call_list WHERE in_file = 1 AND row_key = ? AND raw_data = ?',
+        'SELECT id FROM call_list WHERE row_key = ? AND raw_data = ?',
         [g.rowKey, g.rawData]);
       while (rs.goToNextRow()) {
         ids.push(rs.getLong(rs.getColumnIndex('id')));
