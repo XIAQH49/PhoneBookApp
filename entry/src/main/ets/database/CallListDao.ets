@@ -237,9 +237,11 @@ export class CallListDao {
     }
   }
 
-  /** 当前生效数据集的键快照（合并决策输入，含三状态）。
+  /** 合并决策键快照（含三状态）。
    *  按 id 升序保证同键多行时队列匹配顺序稳定（v0.5.3 加固）；
-   *  M3：LEFT JOIN call_status 一次取回 connected/intention（UNIQUE(row_id,status_key) 保证至多一行）。 */
+   *  M3：LEFT JOIN call_status 一次取回 connected/intention（UNIQUE(row_id,status_key) 保证至多一行）。
+   *  v0.5.4：不过滤 in_file——"文件中已移除"（in_file=0）的行在新文件中重现时按同键匹配复活
+   *  （updateFromFile 置回 in_file=1，本机状态取"或"保留），避免重插丢失本机标记。 */
   static async getActiveKeyRows(): Promise<KeyRow[]> {
     const store: relationalStore.RdbStore = DbHelper.getStore();
     let rs: relationalStore.ResultSet | undefined = undefined;
@@ -250,7 +252,7 @@ export class CallListDao {
         "COALESCE(MAX(CASE WHEN s.status_key = 'intention' THEN s.value END), 0) AS intention " +
         'FROM call_list l ' +
         "LEFT JOIN call_status s ON s.row_id = l.id AND s.status_key IN ('connected', 'intention') " +
-        'WHERE l.in_file = 1 GROUP BY l.id, l.row_key, l.called ORDER BY l.id ASC', []);
+        'GROUP BY l.id, l.row_key, l.called ORDER BY l.id ASC', []);
       const list: KeyRow[] = [];
       while (rs.goToNextRow()) {
         const item: KeyRow = {
