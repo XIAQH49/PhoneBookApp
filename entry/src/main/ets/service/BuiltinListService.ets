@@ -1,10 +1,13 @@
 import { common } from '@kit.AbilityKit';
+import { picker } from '@kit.CoreFileKit';
 import { ConfigDao } from '../database/ConfigDao';
 import { Constants } from '../common/Constants';
 import { Logger } from '../common/Logger';
 import { ImportService } from './ImportService';
 import type { ImportResult } from './ImportService';
 import { MergeService } from './MergeService';
+import { ExportService } from './ExportService';
+import { ExportLogic } from './ExportLogic';
 
 const TAG: string = 'BuiltinListService';
 
@@ -17,9 +20,46 @@ const BUILTIN_CANDIDATES: string[] = ['名单.xlsx', '名单.csv'];
  * 无需 USB 拷贝/手动选择：启动自动检测内置文件内容哈希变化 → 变化即合并导入（已打状态保留，
  * 合并规则同 FR-2 状态取"或"）；亦可在主页点"内置名单"手动导入。
  */
+/** 导出原始内置文件结果 */
+export interface BuiltinExportResult {
+  success: boolean;
+  message: string;
+}
+
 export class BuiltinListService {
   /** 单飞守卫（v0.5.4）：并发触发共享同一次内置导入，避免冗余二次合并 */
   private static importPromise: Promise<ImportResult | undefined> | undefined = undefined;
+
+  /**
+   * 一键导出原始内置文件（v0.6，FR-12）：
+   * 把 rawfile 内置名单原样（字节级）保存到用户选择的位置，
+   * 便于脱离内网构建流程在本地拿回源文件测试/编辑。
+   */
+  static async exportBuiltin(context: common.UIAbilityContext): Promise<BuiltinExportResult> {
+    try {
+      const name: string = await BuiltinListService.findBuiltin(context);
+      if (name === '') {
+        return { success: false, message: '未找到内置名单文件（rawfile/名单.xlsx 或 名单.csv）' };
+      }
+      const bytes: Uint8Array = await context.resourceManager.getRawFileContent(name);
+      const dot: number = name.lastIndexOf('.');
+      const base: string = dot > 0 ? name.substring(0, dot) : name;
+      const ext: string = name.toLowerCase().endsWith('.csv') ? '.csv' : '.xlsx';
+      const fileName: string = ExportLogic.buildFileName(base + '_原始', new Date(), ext);
+      const documentPicker: picker.DocumentViewPicker = new picker.DocumentViewPicker(context);
+      const saveOpts: picker.DocumentSaveOptions = { newFileNames: [fileName] };
+      const uris: string[] = await documentPicker.save(saveOpts);
+      if (uris.length === 0) {
+        return { success: false, message: '已取消导出' };
+      }
+      ExportService.writeUri(uris[0], bytes);
+      Logger.info(TAG, 'export builtin ok: ' + fileName);
+      return { success: true, message: '已导出原始文件：' + fileName };
+    } catch (e) {
+      Logger.error(TAG, 'exportBuiltin failed: ' + (e as Error).message);
+      return { success: false, message: '导出原始文件失败：' + (e as Error).message };
+    }
+  }
 
   /** 查找内置名单文件（返回文件名；不存在返回空串） */
   static async findBuiltin(context: common.UIAbilityContext): Promise<string> {

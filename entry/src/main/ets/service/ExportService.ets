@@ -99,7 +99,8 @@ export class ExportService {
     }
   }
 
-  private static writeUri(uri: string, bytes: Uint8Array): void {
+  /** 字节写入 uri（供导出结果与导出原始内置文件共用） */
+  static writeUri(uri: string, bytes: Uint8Array): void {
     let file: fs.File | undefined = undefined;
     try {
       file = fs.openSync(uri,

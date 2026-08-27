@@ -6,6 +6,7 @@ import { ContextUtil } from '../common/ContextUtil';
 import { ImportService } from '../service/ImportService';
 import type { ImportResult, ProgressInfo } from '../service/ImportService';
 import { BuiltinListService } from '../service/BuiltinListService';
+import type { BuiltinExportResult } from '../service/BuiltinListService';
 import { ExportService } from '../service/ExportService';
 import type { ExportResult } from '../service/ExportService';
 import { CallService } from '../service/CallService';
@@ -331,6 +332,17 @@ struct Index {
     }
   }
 
+  /** 一键导出原始内置文件（v0.6，FR-12）：脱离内网构建流程拿回源文件 */
+  async onExportBuiltin(): Promise<void> {
+    const ctx: common.UIAbilityContext | undefined = ContextUtil.getAbilityContext(this.getUIContext());
+    if (ctx === undefined) {
+      this.uiToast('无法获取应用上下文');
+      return;
+    }
+    const result: BuiltinExportResult = await BuiltinListService.exportBuiltin(ctx);
+    this.uiToast(result.message);
+  }
+
   async onExport(): Promise<void> {
     if (this.exporting) {
       return;
@@ -546,6 +558,13 @@ struct Index {
             .margin({ left: 8 })
             .onClick(() => {
               this.checkBuiltin(true);
+            })
+          Button('导出原始文件')
+            .fontSize(14)
+            .layoutWeight(1)
+            .margin({ left: 8 })
+            .onClick(() => {
+              this.onExportBuiltin();
             })
           Button(this.exporting ? '导出中…' : '导出结果')
             .fontSize(14)
