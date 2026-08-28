@@ -14,7 +14,6 @@ import { ConfigDao } from '../database/ConfigDao';
 import { DbHelper } from '../database/DbHelper';
 import { CallListDao } from '../database/CallListDao';
 import { ThemeSpec } from '../common/ThemeSpec';
-import { WindowInsets } from '../common/WindowInsets';
 import { StatCard } from '../components/StatCard';
 import { EmptyView } from '../components/EmptyView';
 import { PersonCard } from '../components/PersonCard';
@@ -63,8 +62,6 @@ struct Index {
   @State showNumberSheet: boolean = false;
   @State sheetNumbers: string[] = [];
   @State sheetName: string = '';
-  @State insetTop: number = 0;
-  @State insetBottom: number = 0;
   private sheetRecord: CallRecord = new CallRecord();
   private confirmName: string = '';
   private confirmNumber: string = '';
@@ -101,13 +98,6 @@ struct Index {
     try {
       // 等待数据库就绪（冷启动 EntryAbility 异步初始化可能尚未完成，避免瞬时失败）
       await DbHelper.ready();
-      // 沉浸式安全区高度（状态栏/导航栏），expandSafeArea 后头栏/底栏补偿
-      const ctx: common.UIAbilityContext | undefined = ContextUtil.getAbilityContext(this.getUIContext());
-      if (ctx !== undefined) {
-        await WindowInsets.load(ctx, this.getUIContext());
-        this.insetTop = WindowInsets.top();
-        this.insetBottom = WindowInsets.bottom();
-      }
       await this.vm.init();
       await this.syncAll();
       // v0.5：内置名单变化检测（每次启动仅一次，内容哈希变化才导入，已打状态保留）
@@ -630,7 +620,7 @@ struct Index {
     }
     .width('100%')
     .constraintSize({ maxWidth: ThemeSpec.CONTENT_MAX_WIDTH_VP })
-    .padding({ left: $r('app.float.space_page'), right: $r('app.float.space_page'), top: this.insetTop + 4, bottom: 4 })
+    .padding({ left: $r('app.float.space_page'), right: $r('app.float.space_page') })
     .backgroundColor($r('app.color.bar_bg'))
     .backgroundBlurStyle(ThemeSpec.BAR_BLUR)
   }
@@ -658,7 +648,7 @@ struct Index {
       .padding({
         left: $r('app.float.space_page'),
         right: $r('app.float.space_page'),
-        top: this.insetTop + (this.searchOpen ? 148 : 84),
+        top: this.searchOpen ? 148 : 84,
         bottom: $r('app.float.grid_bottom_padding')
       })
       .width('100%')
@@ -674,12 +664,18 @@ struct Index {
     Navigation(this.pathStack) {
       Stack({ alignContent: Alignment.Bottom }) {
         Stack({ alignContent: Alignment.Top }) {
+          // 背景层：扩展铺满状态栏/导航栏安全区（无重叠、无黑边），内容层保持系统安全区避让
+          Column()
+            .width('100%')
+            .height('100%')
+            .backgroundColor($r('app.color.bg_page'))
+            .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
+
           Column() {
             this.contentArea()
           }
           .width('100%')
           .height('100%')
-          .backgroundColor($r('app.color.bg_page'))
 
           this.topBar()
         }
@@ -703,12 +699,10 @@ struct Index {
             this.onExport();
           }
         })
-          .margin({ bottom: 16 + this.insetBottom })
+          .margin({ bottom: 16 })
       }
       .width('100%')
       .height('100%')
-      .backgroundColor($r('app.color.bg_page'))
-      .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
     }
     .mode(NavigationMode.Stack)
     .hideTitleBar(true)

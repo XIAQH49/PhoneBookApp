@@ -5,8 +5,6 @@ import { ConfigDao } from '../database/ConfigDao';
 import { ImportMeta } from '../model/ImportMeta';
 import { Constants } from '../common/Constants';
 import { DataResetService } from '../database/DataResetService';
-import { ContextUtil } from '../common/ContextUtil';
-import { WindowInsets } from '../common/WindowInsets';
 import { MotionSpec } from '../common/MotionSpec';
 import { ThemeSpec, MaterialRole } from '../common/ThemeSpec';
 import { IconButton } from '../components/IconButton';
@@ -26,7 +24,6 @@ export struct Settings {
   @State stripCountry: boolean = false;
   @State dataInfo: string = '';
   @State appearCard: number = 0;
-  @State insetTop: number = 0;
   private stack: NavPathStack | undefined = undefined;
 
   /** NavDestination 就绪回调：记录栈引用 */
@@ -43,11 +40,6 @@ export struct Settings {
   }
 
   async aboutToAppear(): Promise<void> {
-    const ctx: common.UIAbilityContext | undefined = ContextUtil.getAbilityContext(this.getUIContext());
-    if (ctx !== undefined) {
-      await WindowInsets.load(ctx, this.getUIContext());
-      this.insetTop = WindowInsets.top();
-    }
     const c: string = await ConfigDao.get(Constants.CONFIG_CONFIRM_BEFORE_CALL);
     this.confirmBefore = c !== '0';
     const s: string = await ConfigDao.get(Constants.CONFIG_EXPORT_SCOPE);
@@ -195,21 +187,29 @@ export struct Settings {
 
   build() {
     NavDestination() {
-      Column() {
-        // 顶部栏：50vp 圆形返回 + 居中标题 + 右侧占位（保持对称）
-        Row() {
-          IconButton({
-            icon: '←',
-            onTap: (): void => {
-              this.popBack();
-            }
-          })
-          Blank()
-          Text($r('app.string.settings_title'))
-            .fontSize($r('app.float.font_headline'))
-            .fontWeight(FontWeight.Bold)
-            .fontColor($r('app.color.text_primary'))
-          Blank()
+      Stack({ alignContent: Alignment.Top }) {
+        // 背景层：扩展铺满状态栏/导航栏安全区（无重叠、无黑边），内容层保持系统安全区避让
+        Column()
+          .width('100%')
+          .height('100%')
+          .backgroundColor($r('app.color.bg_page'))
+          .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
+
+        Column() {
+          // 顶部栏：50vp 圆形返回 + 居中标题 + 右侧占位（保持对称）
+          Row() {
+            IconButton({
+              icon: '←',
+              onTap: (): void => {
+                this.popBack();
+              }
+            })
+            Blank()
+            Text($r('app.string.settings_title'))
+              .fontSize($r('app.float.font_headline'))
+              .fontWeight(FontWeight.Bold)
+              .fontColor($r('app.color.text_primary'))
+            Blank()
           Row()
             .width($r('app.float.icon_btn_size'))
             .height($r('app.float.icon_btn_size'))
@@ -218,7 +218,6 @@ export struct Settings {
         .constraintSize({ maxWidth: ThemeSpec.CONTENT_MAX_WIDTH_VP })
         .height($r('app.float.header_height'))
         .padding({ left: $r('app.float.space_page'), right: $r('app.float.space_page') })
-        .margin({ top: this.insetTop + 8 })
 
         Scroll() {
           Column() {
@@ -313,19 +312,20 @@ export struct Settings {
         .width('100%')
         .scrollBar(BarState.Off)
       }
-      .width('100%')
-      .height('100%')
-      .backgroundColor($r('app.color.bg_page'))
-      .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
     }
-    .hideTitleBar(true)
-    .onReady((ctx: NavDestinationContext) => {
-      this.handleReady(ctx);
-    })
-    .onBackPressed((): boolean => {
-      this.popBack();
-      return true;
-    })
+    .width('100%')
+    .height('100%')
+  }
+  .width('100%')
+  .height('100%')
+  .hideTitleBar(true)
+  .onReady((ctx: NavDestinationContext) => {
+    this.handleReady(ctx);
+  })
+  .onBackPressed((): boolean => {
+    this.popBack();
+    return true;
+  })
   }
 
   /** 一键清除全部名单（带确认） */

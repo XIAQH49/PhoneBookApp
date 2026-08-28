@@ -1,10 +1,7 @@
-import { common } from '@kit.AbilityKit';
 import { CallListDao } from '../database/CallListDao';
 import { ConfigDao } from '../database/ConfigDao';
 import { CountResult } from '../model/CallRecord';
 import { Constants } from '../common/Constants';
-import { ContextUtil } from '../common/ContextUtil';
-import { WindowInsets } from '../common/WindowInsets';
 import { ThemeSpec } from '../common/ThemeSpec';
 import { IconButton } from '../components/IconButton';
 
@@ -23,7 +20,6 @@ export struct AssigneePicker {
   @State keyword: string = '';
   @State current: string = '';
   @State statsMap: Record<string, CountResult> = {};
-  @State insetTop: number = 0;
   private stack: NavPathStack | undefined = undefined;
 
   /** NavDestination 就绪回调：记录栈引用 */
@@ -40,11 +36,6 @@ export struct AssigneePicker {
   }
 
   async aboutToAppear(): Promise<void> {
-    const ctx: common.UIAbilityContext | undefined = ContextUtil.getAbilityContext(this.getUIContext());
-    if (ctx !== undefined) {
-      await WindowInsets.load(ctx, this.getUIContext());
-      this.insetTop = WindowInsets.top();
-    }
     this.list = await CallListDao.getAssigneeList();
     this.current = await ConfigDao.getLastAssignee();
     await this.loadStats();
@@ -80,10 +71,18 @@ export struct AssigneePicker {
 
   build() {
     NavDestination() {
-      Column() {
-        // 顶部栏：50vp 圆形返回 + 居中标题 + 右侧占位（保持对称）
-        Row() {
-          IconButton({
+      Stack({ alignContent: Alignment.Top }) {
+        // 背景层：扩展铺满状态栏/导航栏安全区（无重叠、无黑边），内容层保持系统安全区避让
+        Column()
+          .width('100%')
+          .height('100%')
+          .backgroundColor($r('app.color.bg_page'))
+          .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
+
+        Column() {
+          // 顶部栏：50vp 圆形返回 + 居中标题 + 右侧占位（保持对称）
+          Row() {
+            IconButton({
             icon: '←',
             onTap: (): void => {
               this.popBack();
@@ -103,7 +102,6 @@ export struct AssigneePicker {
         .constraintSize({ maxWidth: ThemeSpec.CONTENT_MAX_WIDTH_VP })
         .height($r('app.float.header_height'))
         .padding({ left: $r('app.float.space_page'), right: $r('app.float.space_page') })
-        .margin({ top: this.insetTop + 8 })
 
         // 搜索胶囊（radius_search 22vp）
         Row() {
@@ -184,18 +182,19 @@ export struct AssigneePicker {
         .width('100%')
         .scrollBar(BarState.Off)
       }
-      .width('100%')
-      .height('100%')
-      .backgroundColor($r('app.color.bg_page'))
-      .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
     }
-    .hideTitleBar(true)
-    .onReady((ctx: NavDestinationContext) => {
-      this.handleReady(ctx);
-    })
-    .onBackPressed((): boolean => {
-      this.popBack();
-      return true;
-    })
+    .width('100%')
+    .height('100%')
+  }
+  .width('100%')
+  .height('100%')
+  .hideTitleBar(true)
+  .onReady((ctx: NavDestinationContext) => {
+    this.handleReady(ctx);
+  })
+  .onBackPressed((): boolean => {
+    this.popBack();
+    return true;
+  })
   }
 }

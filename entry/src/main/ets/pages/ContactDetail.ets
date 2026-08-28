@@ -7,7 +7,6 @@ import { ImportMeta } from '../model/ImportMeta';
 import { Constants } from '../common/Constants';
 import { ConfigDao } from '../database/ConfigDao';
 import { ContextUtil } from '../common/ContextUtil';
-import { WindowInsets } from '../common/WindowInsets';
 import { CallService } from '../service/CallService';
 import { MotionSpec } from '../common/MotionSpec';
 import { ThemeSpec, MaterialRole } from '../common/ThemeSpec';
@@ -41,7 +40,6 @@ export struct ContactDetail {
   @State sheetNumbers: string[] = [];
   @State sheetName: string = '';
   @State appear: number = 0;
-  @State insetTop: number = 0;
   private confirmName: string = '';
   private confirmNumber: string = '';
   private confirmController: CustomDialogController | undefined = undefined;
@@ -64,11 +62,6 @@ export struct ContactDetail {
   }
 
   async loadRecord(id: number): Promise<void> {
-    const ctx: common.UIAbilityContext | undefined = ContextUtil.getAbilityContext(this.getUIContext());
-    if (ctx !== undefined) {
-      await WindowInsets.load(ctx, this.getUIContext());
-      this.insetTop = WindowInsets.top();
-    }
     const rec: CallRecord | undefined = await CallListDao.getById(id);
     if (rec === undefined) {
       this.loaded = false;
@@ -404,9 +397,17 @@ export struct ContactDetail {
 
   build() {
     NavDestination() {
-      Column() {
-        // 顶部栏：50vp 圆形返回 + 居中标题（姓名）+ 右侧占位（保持对称）
-        Row() {
+      Stack({ alignContent: Alignment.Top }) {
+        // 背景层：扩展铺满状态栏/导航栏安全区（无重叠、无黑边），内容层保持系统安全区避让
+        Column()
+          .width('100%')
+          .height('100%')
+          .backgroundColor($r('app.color.bg_page'))
+          .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
+
+        Column() {
+          // 顶部栏：50vp 圆形返回 + 居中标题（姓名）+ 右侧占位（保持对称）
+          Row() {
           IconButton({
             icon: '←',
             onTap: (): void => {
@@ -429,7 +430,6 @@ export struct ContactDetail {
         .constraintSize({ maxWidth: ThemeSpec.CONTENT_MAX_WIDTH_VP })
         .height($r('app.float.header_height'))
         .padding({ left: $r('app.float.space_page'), right: $r('app.float.space_page') })
-        .margin({ top: this.insetTop + 8 })
 
         if (!this.loaded) {
           Text('未找到该条数据')
@@ -498,17 +498,18 @@ export struct ContactDetail {
       }
       .width('100%')
       .height('100%')
-      .backgroundColor($r('app.color.bg_page'))
-      .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
     }
-    .hideTitleBar(true)
-    .onReady((ctx: NavDestinationContext) => {
-      this.handleReady(ctx);
-    })
-    .onBackPressed((): boolean => {
-      this.popBack();
-      return true;
-    })
-    .bindSheet($$this.showNumberSheet, this.numberSheetContent(), { height: 320, showClose: true })
+    .width('100%')
+    .height('100%')
   }
+  .hideTitleBar(true)
+  .onReady((ctx: NavDestinationContext) => {
+    this.handleReady(ctx);
+  })
+  .onBackPressed((): boolean => {
+    this.popBack();
+    return true;
+  })
+  .bindSheet($$this.showNumberSheet, this.numberSheetContent(), { height: 320, showClose: true })
+}
 }
