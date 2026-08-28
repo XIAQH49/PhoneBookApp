@@ -1,11 +1,14 @@
 import { MotionSpec } from '../common/MotionSpec';
-import { ThemeSpec } from '../common/ThemeSpec';
+import { MaterialRole } from '../common/ThemeSpec';
 import { StatusPill } from './StatusPill';
+import { SemanticMaterialSurface } from './SemanticMaterialSurface';
 
 /**
- * 名单双列卡（docs/14 第 3/5.3 节）：
+ * 名单卡片（docs/14 第 3/5.3/8 节，固定单列 v0.1.2）：
  * 上=姓名（headline）+ 状态胶囊（右上，点击=标记/撤销）；中=手机号；下=工号 + 圆形小拨号钮（右下 40vp）。
- * 卡片整体点击 → 详情；按压 scale 0.96 + brightness 0.9；入场淡入+上移+弹性错峰。
+ * 卡片整体点击 → 详情；语义材质 = 未打 featured-surface（EMPHASIS 重点待办）/ 已打 normal-surface；
+ * 按压/阴影/边缘光线由 SemanticMaterialSurface 按 MaterialTokens + resolveCardVisualSpec 渲染（8.4 光随指动）。
+ * 入场淡入+上移+弹性错峰在外层容器执行（与按压形变通道分离）。
  */
 @Component
 export struct PersonCard {
@@ -20,7 +23,6 @@ export struct PersonCard {
   };
   onOpen: () => void = () => {
   };
-  @State pressed: boolean = false;
   @State appear: boolean = false;
 
   aboutToAppear(): void {
@@ -32,7 +34,8 @@ export struct PersonCard {
     }, delay);
   }
 
-  build() {
+  @Builder
+  cardBody() {
     Column() {
       Row() {
         Text(this.name !== '' ? this.name : '（无姓名）')
@@ -84,36 +87,25 @@ export struct PersonCard {
       .margin({ top: 10 })
     }
     .width('100%')
-    .constraintSize({ minHeight: 128 })
+    .constraintSize({ minHeight: 92 })
     .padding($r('app.float.space_card_inner'))
-    .borderRadius($r('app.float.radius_item'))
-    .backgroundColor($r('app.color.card'))
-    .shadow({
-      radius: ThemeSpec.SHADOW_CARD_RADIUS,
-      color: ThemeSpec.SHADOW_CARD_COLOR,
-      offsetX: 0,
-      offsetY: ThemeSpec.SHADOW_CARD_OFFSET_Y
-    })
+  }
+
+  build() {
+    Column() {
+      SemanticMaterialSurface({
+        role: this.called ? MaterialRole.NORMAL_SURFACE : MaterialRole.FEATURED_SURFACE,
+        emphasis: !this.called,
+        radius: $r('app.float.radius_item'),
+        onTap: (): void => {
+          this.onOpen();
+        }
+      }) {
+        this.cardBody()
+      }
+    }
+    .width('100%')
     .opacity(this.appear ? 1 : 0)
     .translate({ y: this.appear ? 0 : MotionSpec.ENTRANCE_TRANSLATE })
-    .scale({
-      x: this.pressed ? MotionSpec.PRESS_SCALE_CARD : 1,
-      y: this.pressed ? MotionSpec.PRESS_SCALE_CARD : 1
-    })
-    .brightness(this.pressed ? MotionSpec.PRESS_BRIGHTNESS_CARD : 1)
-    .onTouch((e: TouchEvent) => {
-      if (e.type === TouchType.Down) {
-        this.getUIContext().animateTo({ curve: MotionSpec.press() }, () => {
-          this.pressed = true;
-        });
-      } else if (e.type === TouchType.Up || e.type === TouchType.Cancel) {
-        this.getUIContext().animateTo({ curve: MotionSpec.press() }, () => {
-          this.pressed = false;
-        });
-      }
-    })
-    .onClick(() => {
-      this.onOpen();
-    })
   }
 }
