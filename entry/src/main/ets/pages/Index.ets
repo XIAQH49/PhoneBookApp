@@ -664,18 +664,12 @@ struct Index {
     Navigation(this.pathStack) {
       Stack({ alignContent: Alignment.Bottom }) {
         Stack({ alignContent: Alignment.Top }) {
-          // 背景层：扩展铺满状态栏/导航栏安全区（无重叠、无黑边），内容层保持系统安全区避让
-          Column()
-            .width('100%')
-            .height('100%')
-            .backgroundColor($r('app.color.bg_page'))
-            .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
-
           Column() {
             this.contentArea()
           }
           .width('100%')
           .height('100%')
+          .backgroundColor($r('app.color.bg_page'))
 
           this.topBar()
         }

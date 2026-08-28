@@ -397,17 +397,9 @@ export struct ContactDetail {
 
   build() {
     NavDestination() {
-      Stack({ alignContent: Alignment.Top }) {
-        // 背景层：扩展铺满状态栏/导航栏安全区（无重叠、无黑边），内容层保持系统安全区避让
-        Column()
-          .width('100%')
-          .height('100%')
-          .backgroundColor($r('app.color.bg_page'))
-          .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
-
-        Column() {
-          // 顶部栏：50vp 圆形返回 + 居中标题（姓名）+ 右侧占位（保持对称）
-          Row() {
+      Column() {
+        // 顶部栏：50vp 圆形返回 + 居中标题（姓名）+ 右侧占位（保持对称）
+        Row() {
           IconButton({
             icon: '←',
             onTap: (): void => {
@@ -498,18 +490,16 @@ export struct ContactDetail {
       }
       .width('100%')
       .height('100%')
+      .backgroundColor($r('app.color.bg_page'))
     }
-    .width('100%')
-    .height('100%')
+    .hideTitleBar(true)
+    .onReady((ctx: NavDestinationContext) => {
+      this.handleReady(ctx);
+    })
+    .onBackPressed((): boolean => {
+      this.popBack();
+      return true;
+    })
+    .bindSheet($$this.showNumberSheet, this.numberSheetContent(), { height: 320, showClose: true })
   }
-  .hideTitleBar(true)
-  .onReady((ctx: NavDestinationContext) => {
-    this.handleReady(ctx);
-  })
-  .onBackPressed((): boolean => {
-    this.popBack();
-    return true;
-  })
-  .bindSheet($$this.showNumberSheet, this.numberSheetContent(), { height: 320, showClose: true })
-}
 }
