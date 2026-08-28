@@ -13,6 +13,7 @@ import { IconButton } from '../components/IconButton';
  * 搜索胶囊 + 列表行带任务统计（「张三 20 条任务 · 12 条已打」）；
  * 选中：primary_soft 底 + 左 8vp 蓝色指示条（selection 语义）；
  * 行点击 → 写配置 → pop 返回（宿主 Index 经 onPop 回调自动重载，链路与旧版一致）。
+ * 沉浸（docs/16 6.2）：背景层 expandSafeArea（测量成功才扩展），内容层保持安全区避让。
  *
  * M2-2：router → Navigation 迁移。本页为 NavDestination；
  * 返回统一 pop(带结果) 并拦截系统返回，保证宿主 Index 的 onPop 回调触发。
@@ -82,116 +83,131 @@ export struct AssigneePicker {
 
   build() {
     NavDestination() {
-      Column() {
-        // 顶部栏：50vp 圆形返回 + 居中标题 + 右侧占位（保持对称）
-        Row() {
-          IconButton({
-            icon: '←',
-            onTap: (): void => {
-              this.popBack();
-            }
-          })
-          Blank()
-          Text($r('app.string.assignee_picker_title'))
-            .fontSize($r('app.float.font_headline'))
-            .fontWeight(FontWeight.Bold)
-            .fontColor($r('app.color.text_primary'))
-          Blank()
-          Row()
-            .width($r('app.float.icon_btn_size'))
-            .height($r('app.float.icon_btn_size'))
-        }
-        .width('100%')
-        .constraintSize({ maxWidth: ThemeSpec.CONTENT_MAX_WIDTH_VP })
-        .height($r('app.float.header_height'))
-        .padding({ left: $r('app.float.space_page'), right: $r('app.float.space_page') })
-        .margin({ top: this.insetTop + 8 })
+      Stack({ alignContent: Alignment.Top }) {
+        // 背景层：expandSafeArea 铺满状态栏/导航栏（docs/16 6.2，测量成功才扩展）
+        Column()
+          .width('100%')
+          .height('100%')
+          .backgroundColor($r('app.color.bg_page'))
+          .expandSafeArea(this.immersive ? [SafeAreaType.SYSTEM] : undefined,
+            this.immersive ? [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM] : undefined)
 
-        // 搜索胶囊（radius_search 22vp）
-        Row() {
-          Text('🔍')
-            .fontSize(16)
-            .margin({ left: 16 })
-          TextInput({ placeholder: $r('app.string.search_assignee_hint'), text: this.keyword })
-            .fontSize($r('app.float.font_body'))
-            .fontColor($r('app.color.text_primary'))
-            .backgroundColor(Color.Transparent)
-            .height($r('app.float.search_height'))
-            .layoutWeight(1)
-            .margin({ left: 8, right: 14 })
-            .onChange((v: string) => {
-              this.keyword = v;
-            })
-        }
-        .height($r('app.float.search_height'))
-        .width('100%')
-        .constraintSize({ maxWidth: ThemeSpec.CONTENT_MAX_WIDTH_VP })
-        .backgroundColor($r('app.color.surface_card'))
-        .border({ width: 1, color: $r('app.color.divider') })
-        .borderRadius($r('app.float.radius_search'))
-        .margin({ left: $r('app.float.space_page'), right: $r('app.float.space_page'), bottom: $r('app.float.space_between') })
-
-        List() {
-          ForEach(this.filteredList(), (a: string) => {
-            ListItem() {
-              Row() {
-                // 选中指示条（selection 语义：左 8vp 蓝色指示条）
-                if (a === this.current) {
-                  Row()
-                    .width(8)
-                    .height('60%')
-                    .borderRadius(4)
-                    .backgroundColor($r('app.color.primary'))
-                    .margin({ right: 12 })
-                }
-                Column() {
-                  Text(a === Constants.UNASSIGNED ? '未分配' : a)
-                    .fontSize($r('app.float.font_body'))
-                    .fontWeight(FontWeight.Medium)
-                    .fontColor($r('app.color.text_primary'))
-                  Text(this.rowStats(a))
-                    .fontSize($r('app.float.font_overline'))
-                    .fontColor($r('app.color.text_tertiary'))
-                    .margin({ top: 4 })
-                }
-                .alignItems(HorizontalAlign.Start)
-                .layoutWeight(1)
-                if (a === this.current) {
-                  Text('✓')
-                    .fontSize(18)
-                    .fontWeight(FontWeight.Bold)
-                    .fontColor($r('app.color.primary'))
-                }
+        // 内容层：保持系统安全区避让
+        Column() {
+          // 顶部栏：50vp 圆形返回 + 居中标题 + 右侧占位（保持对称）
+          Row() {
+            IconButton({
+              icon: '←',
+              onTap: (): void => {
+                this.popBack();
               }
-              .width('100%')
-              .padding({ left: $r('app.float.space_card_inner'), right: $r('app.float.space_card_inner'), top: 16, bottom: 16 })
-              .alignItems(VerticalAlign.Center)
-              .borderRadius($r('app.float.radius_item'))
-              .backgroundColor(a === this.current ? $r('app.color.primary_soft') : $r('app.color.surface_card'))
-              .border({
-                width: a === this.current ? 1 : 0,
-                color: $r('app.color.selection_border')
+            })
+            Blank()
+            Text($r('app.string.assignee_picker_title'))
+              .fontSize($r('app.float.font_headline'))
+              .fontWeight(FontWeight.Bold)
+              .fontColor($r('app.color.text_primary'))
+            Blank()
+            Row()
+              .width($r('app.float.icon_btn_size'))
+              .height($r('app.float.icon_btn_size'))
+          }
+          .width('100%')
+          .constraintSize({ maxWidth: ThemeSpec.CONTENT_MAX_WIDTH_VP })
+          .height($r('app.float.header_height'))
+          .padding({ left: $r('app.float.space_page'), right: $r('app.float.space_page') })
+          .margin({ top: 8 })
+
+          // 搜索胶囊（radius_search 22vp）
+          Row() {
+            Text('🔍')
+              .fontSize(16)
+              .margin({ left: 16 })
+            TextInput({ placeholder: $r('app.string.search_assignee_hint'), text: this.keyword })
+              .fontSize($r('app.float.font_body'))
+              .fontColor($r('app.color.text_primary'))
+              .backgroundColor(Color.Transparent)
+              .height($r('app.float.search_height'))
+              .layoutWeight(1)
+              .margin({ left: 8, right: 14 })
+              .onChange((v: string) => {
+                this.keyword = v;
               })
-              .onClick(() => {
-                ConfigDao.setLastAssignee(a).then(() => {
-                  this.popBack();
-                });
-              })
-            }
-            .margin({ left: $r('app.float.space_page'), right: $r('app.float.space_page'), top: 6, bottom: 6 })
-            .constraintSize({ maxWidth: ThemeSpec.CONTENT_MAX_WIDTH_VP })
-          }, (a: string) => a)
+          }
+          .height($r('app.float.search_height'))
+          .width('100%')
+          .constraintSize({ maxWidth: ThemeSpec.CONTENT_MAX_WIDTH_VP })
+          .backgroundColor($r('app.color.surface_card'))
+          .border({ width: 1, color: $r('app.color.divider') })
+          .borderRadius($r('app.float.radius_search'))
+          .margin({ left: $r('app.float.space_page'), right: $r('app.float.space_page'), bottom: $r('app.float.space_between') })
+
+          List() {
+            ForEach(this.filteredList(), (a: string) => {
+              ListItem() {
+                Row() {
+                  // 选中指示条（selection 语义：左 8vp 蓝色指示条）
+                  if (a === this.current) {
+                    Row()
+                      .width(8)
+                      .height('60%')
+                      .borderRadius(4)
+                      .backgroundColor($r('app.color.primary'))
+                      .margin({ right: 12 })
+                  }
+                  Column() {
+                    Text(a === Constants.UNASSIGNED ? '未分配' : a)
+                      .fontSize($r('app.float.font_body'))
+                      .fontWeight(FontWeight.Medium)
+                      .fontColor($r('app.color.text_primary'))
+                    Text(this.rowStats(a))
+                      .fontSize($r('app.float.font_overline'))
+                      .fontColor($r('app.color.text_tertiary'))
+                      .margin({ top: 4 })
+                  }
+                  .alignItems(HorizontalAlign.Start)
+                  .layoutWeight(1)
+                  if (a === this.current) {
+                    Text('✓')
+                      .fontSize(18)
+                      .fontWeight(FontWeight.Bold)
+                      .fontColor($r('app.color.primary'))
+                  }
+                }
+                .width('100%')
+                .padding({
+                  left: $r('app.float.space_card_inner'),
+                  right: $r('app.float.space_card_inner'),
+                  top: 16,
+                  bottom: 16
+                })
+                .alignItems(VerticalAlign.Center)
+                .borderRadius($r('app.float.radius_item'))
+                .backgroundColor(a === this.current ? $r('app.color.primary_soft') : $r('app.color.surface_card'))
+                .border({
+                  width: a === this.current ? 1 : 0,
+                  color: $r('app.color.selection_border')
+                })
+                .onClick(() => {
+                  ConfigDao.setLastAssignee(a).then(() => {
+                    this.popBack();
+                  });
+                })
+              }
+              .margin({ left: $r('app.float.space_page'), right: $r('app.float.space_page'), top: 6, bottom: 6 })
+              .constraintSize({ maxWidth: ThemeSpec.CONTENT_MAX_WIDTH_VP })
+            }, (a: string) => a)
+          }
+          .layoutWeight(1)
+          .width('100%')
+          .scrollBar(BarState.Off)
         }
-        .layoutWeight(1)
         .width('100%')
-        .scrollBar(BarState.Off)
+        .height('100%')
       }
+      .width('100%')
+      .height('100%')
     }
-    .width('100%')
-    .height('100%')
-    .backgroundColor($r('app.color.bg_page'))
-    .expandSafeArea(this.immersive ? [SafeAreaType.SYSTEM] : undefined,
-      this.immersive ? [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM] : undefined)
     .hideTitleBar(true)
     .onReady((ctx: NavDestinationContext) => {
       this.handleReady(ctx);

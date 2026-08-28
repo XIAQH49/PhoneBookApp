@@ -15,6 +15,7 @@ import { SemanticMaterialSurface } from '../components/SemanticMaterialSurface';
 /**
  * 设置页（FR-5 / R-4；docs/15 3.3 + 校对#1：仅重构现有设置项，不新增开关）：
  * 拨号 分组卡（拨号前确认/拨号前去除+86）、导出 分组卡（单选）、信息 卡片、危险 卡片。
+ * 沉浸（docs/16 6.2）：背景层 expandSafeArea（测量成功才扩展），内容层保持安全区避让。
  *
  * M2-2：router → Navigation 迁移。本页为 NavDestination；
  * 返回统一 pop(带结果) 并拦截系统返回，保证宿主 Index 的 onPop 回调触发。
@@ -197,130 +198,144 @@ export struct Settings {
 
   build() {
     NavDestination() {
-      Column() {
-        // 顶部栏：50vp 圆形返回 + 居中标题 + 右侧占位（保持对称）
-        Row() {
-          IconButton({
-            icon: '←',
-            onTap: (): void => {
-              this.popBack();
-            }
-          })
-          Blank()
-          Text($r('app.string.settings_title'))
-            .fontSize($r('app.float.font_headline'))
+      Stack({ alignContent: Alignment.Top }) {
+        // 背景层：expandSafeArea 铺满状态栏/导航栏（docs/16 6.2，测量成功才扩展）
+        Column()
+          .width('100%')
+          .height('100%')
+          .backgroundColor($r('app.color.bg_page'))
+          .expandSafeArea(this.immersive ? [SafeAreaType.SYSTEM] : undefined,
+            this.immersive ? [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM] : undefined)
+
+        // 内容层：保持系统安全区避让
+        Column() {
+          // 顶部栏：50vp 圆形返回 + 居中标题 + 右侧占位（保持对称）
+          Row() {
+            IconButton({
+              icon: '←',
+              onTap: (): void => {
+                this.popBack();
+              }
+            })
+            Blank()
+            Text($r('app.string.settings_title'))
+              .fontSize($r('app.float.font_headline'))
               .fontWeight(FontWeight.Bold)
               .fontColor($r('app.color.text_primary'))
             Blank()
-          Row()
-            .width($r('app.float.icon_btn_size'))
-            .height($r('app.float.icon_btn_size'))
-        }
-        .width('100%')
-        .constraintSize({ maxWidth: ThemeSpec.CONTENT_MAX_WIDTH_VP })
-        .height($r('app.float.header_height'))
-        .padding({ left: $r('app.float.space_page'), right: $r('app.float.space_page') })
-        .margin({ top: this.insetTop + 8 })
-
-        Scroll() {
-          Column() {
-            // ---- 拨号 分组卡 ----
-            Column() {
-              this.sectionLabel($r('app.string.section_call'))
-              SemanticMaterialSurface({
-                role: MaterialRole.NORMAL_SURFACE,
-                emphasis: false,
-                radius: $r('app.float.radius_card')
-              }) {
-                this.dialCardBody()
-              }
-            }
-            .width('100%')
-            .opacity(this.appearCard >= 1 ? 1 : 0)
-            .translate({ y: this.appearCard >= 1 ? 0 : MotionSpec.ENTRANCE_TRANSLATE })
-
-            // ---- 导出 分组卡 ----
-            Column() {
-              this.sectionLabel($r('app.string.section_export'))
-              SemanticMaterialSurface({
-                role: MaterialRole.NORMAL_SURFACE,
-                emphasis: false,
-                radius: $r('app.float.radius_card')
-              }) {
-                this.exportCardBody()
-              }
-            }
-            .width('100%')
-            .margin({ top: $r('app.float.space_group') })
-            .opacity(this.appearCard >= 2 ? 1 : 0)
-            .translate({ y: this.appearCard >= 2 ? 0 : MotionSpec.ENTRANCE_TRANSLATE })
-
-            // ---- 信息 卡片 ----
-            Column() {
-              this.sectionLabel($r('app.string.section_data'))
-              SemanticMaterialSurface({
-                role: MaterialRole.NORMAL_SURFACE,
-                emphasis: false,
-                radius: $r('app.float.radius_card')
-              }) {
-                Row() {
-                  Text($r('app.string.section_data'))
-                    .fontSize($r('app.float.font_caption'))
-                    .fontColor($r('app.color.text_tertiary'))
-                  Blank()
-                  Text(this.dataInfo)
-                    .fontSize($r('app.float.font_caption'))
-                    .fontColor($r('app.color.text_secondary'))
-                    .maxLines(1)
-                    .textOverflow({ overflow: TextOverflow.Ellipsis })
-                    .layoutWeight(1)
-                    .margin({ left: 12 })
-                    .textAlign(TextAlign.End)
-                }
-                .width('100%')
-                .padding($r('app.float.space_card_inner'))
-              }
-            }
-            .width('100%')
-            .margin({ top: $r('app.float.space_group') })
-            .opacity(this.appearCard >= 3 ? 1 : 0)
-            .translate({ y: this.appearCard >= 3 ? 0 : MotionSpec.ENTRANCE_TRANSLATE })
-
-            // ---- 危险 卡片（danger 描边，只重构不加新项）----
-            Button() {
-              Row() {
-                Text('⚠').fontSize(16)
-                Text($r('app.string.clear_all_data'))
-                  .fontSize(15)
-                  .fontWeight(FontWeight.Medium)
-                  .margin({ left: 6 })
-              }
-            }
-            .width('100%')
-            .height(52)
-            .fontColor($r('app.color.danger'))
-            .backgroundColor($r('app.color.danger_soft'))
-            .borderRadius($r('app.float.radius_card'))
-            .border({ width: 1, color: $r('app.color.danger') })
-            .margin({ top: $r('app.float.space_group') })
-            .onClick(() => {
-              this.onClearAll();
-            })
+            Row()
+              .width($r('app.float.icon_btn_size'))
+              .height($r('app.float.icon_btn_size'))
           }
           .width('100%')
           .constraintSize({ maxWidth: ThemeSpec.CONTENT_MAX_WIDTH_VP })
-          .padding({ left: $r('app.float.space_page'), right: $r('app.float.space_page'), bottom: $r('app.float.space_group') })
+          .height($r('app.float.header_height'))
+          .padding({ left: $r('app.float.space_page'), right: $r('app.float.space_page') })
+          .margin({ top: 8 })
+
+          Scroll() {
+            Column() {
+              // ---- 拨号 分组卡 ----
+              Column() {
+                this.sectionLabel($r('app.string.section_call'))
+                SemanticMaterialSurface({
+                  role: MaterialRole.NORMAL_SURFACE,
+                  emphasis: false,
+                  radius: $r('app.float.radius_card')
+                }) {
+                  this.dialCardBody()
+                }
+              }
+              .width('100%')
+              .opacity(this.appearCard >= 1 ? 1 : 0)
+              .translate({ y: this.appearCard >= 1 ? 0 : MotionSpec.ENTRANCE_TRANSLATE })
+
+              // ---- 导出 分组卡 ----
+              Column() {
+                this.sectionLabel($r('app.string.section_export'))
+                SemanticMaterialSurface({
+                  role: MaterialRole.NORMAL_SURFACE,
+                  emphasis: false,
+                  radius: $r('app.float.radius_card')
+                }) {
+                  this.exportCardBody()
+                }
+              }
+              .width('100%')
+              .margin({ top: $r('app.float.space_group') })
+              .opacity(this.appearCard >= 2 ? 1 : 0)
+              .translate({ y: this.appearCard >= 2 ? 0 : MotionSpec.ENTRANCE_TRANSLATE })
+
+              // ---- 信息 卡片 ----
+              Column() {
+                this.sectionLabel($r('app.string.section_data'))
+                SemanticMaterialSurface({
+                  role: MaterialRole.NORMAL_SURFACE,
+                  emphasis: false,
+                  radius: $r('app.float.radius_card')
+                }) {
+                  Row() {
+                    Text($r('app.string.section_data'))
+                      .fontSize($r('app.float.font_caption'))
+                      .fontColor($r('app.color.text_tertiary'))
+                    Blank()
+                    Text(this.dataInfo)
+                      .fontSize($r('app.float.font_caption'))
+                      .fontColor($r('app.color.text_secondary'))
+                      .maxLines(1)
+                      .textOverflow({ overflow: TextOverflow.Ellipsis })
+                      .layoutWeight(1)
+                      .margin({ left: 12 })
+                      .textAlign(TextAlign.End)
+                  }
+                  .width('100%')
+                  .padding($r('app.float.space_card_inner'))
+                }
+              }
+              .width('100%')
+              .margin({ top: $r('app.float.space_group') })
+              .opacity(this.appearCard >= 3 ? 1 : 0)
+              .translate({ y: this.appearCard >= 3 ? 0 : MotionSpec.ENTRANCE_TRANSLATE })
+
+              // ---- 危险 卡片（danger 描边，只重构不加新项）----
+              Button() {
+                Row() {
+                  Text('⚠').fontSize(16)
+                  Text($r('app.string.clear_all_data'))
+                    .fontSize(15)
+                    .fontWeight(FontWeight.Medium)
+                    .margin({ left: 6 })
+                }
+              }
+              .width('100%')
+              .height(52)
+              .fontColor($r('app.color.danger'))
+              .backgroundColor($r('app.color.danger_soft'))
+              .borderRadius($r('app.float.radius_card'))
+              .border({ width: 1, color: $r('app.color.danger') })
+              .margin({ top: $r('app.float.space_group') })
+              .onClick(() => {
+                this.onClearAll();
+              })
+            }
+            .width('100%')
+            .constraintSize({ maxWidth: ThemeSpec.CONTENT_MAX_WIDTH_VP })
+            .padding({
+              left: $r('app.float.space_page'),
+              right: $r('app.float.space_page'),
+              bottom: $r('app.float.space_group')
+            })
+          }
+          .layoutWeight(1)
+          .width('100%')
+          .scrollBar(BarState.Off)
         }
-        .layoutWeight(1)
         .width('100%')
-        .scrollBar(BarState.Off)
+        .height('100%')
       }
+      .width('100%')
+      .height('100%')
     }
-    .width('100%')
-    .height('100%')
-    .backgroundColor($r('app.color.bg_page'))
-    .expandSafeArea(this.immersive ? [SafeAreaType.SYSTEM] : undefined,
-      this.immersive ? [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM] : undefined)
     .hideTitleBar(true)
     .onReady((ctx: NavDestinationContext) => {
       this.handleReady(ctx);

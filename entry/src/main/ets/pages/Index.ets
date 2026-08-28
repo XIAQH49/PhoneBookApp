@@ -588,7 +588,7 @@ struct Index {
     }
   }
 
-  /** 毛玻璃顶栏（docs/16 6.1）：大标题 + 搜索/更多/设置三圆钮，覆盖滚动内容 */
+  /** 毛玻璃顶栏（docs/16 6.1）：大标题 + 搜索/更多/设置三圆钮，覆盖滚动内容（内容层已避让安全区） */
   @Builder
   topBar() {
     Row() {
@@ -631,7 +631,7 @@ struct Index {
     .width('100%')
     .constraintSize({ maxWidth: ThemeSpec.CONTENT_MAX_WIDTH_VP })
     .height($r('app.float.header_height'))
-    .padding({ left: $r('app.float.space_page'), right: $r('app.float.space_page'), top: this.insetTop })
+    .padding({ left: $r('app.float.space_page'), right: $r('app.float.space_page') })
     .backgroundColor($r('app.color.bar_bg'))
     .backgroundBlurStyle(ThemeSpec.BAR_BLUR)
     .shadow({
@@ -684,8 +684,8 @@ struct Index {
       .padding({
         left: $r('app.float.space_page'),
         right: $r('app.float.space_page'),
-        top: this.insetTop + 72 + 8 + (this.searchOpen ? 64 : 0),
-        bottom: this.insetBottom + 76 + 32 + 32
+        top: 72 + 8 + (this.searchOpen ? 64 : 0),
+        bottom: 76 + 32 + 16 + 32
       })
       .width('100%')
       .height('100%')
@@ -700,43 +700,52 @@ struct Index {
   build() {
     Navigation(this.pathStack) {
       Stack({ alignContent: Alignment.Bottom }) {
-        Stack({ alignContent: Alignment.Top }) {
-          Column() {
-            this.contentArea()
-          }
+        // 背景层：expandSafeArea 铺满状态栏/导航栏（docs/16 6.2，测量成功才扩展）
+        Column()
           .width('100%')
           .height('100%')
           .backgroundColor($r('app.color.bg_page'))
+          .expandSafeArea(this.immersive ? [SafeAreaType.SYSTEM] : undefined,
+            this.immersive ? [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM] : undefined)
 
-          this.topBar()
+        // 内容层：保持系统安全区避让（顶栏覆盖滚动内容，毛玻璃穿透）
+        Stack({ alignContent: Alignment.Bottom }) {
+          Stack({ alignContent: Alignment.Top }) {
+            Column() {
+              this.contentArea()
+            }
+            .width('100%')
+            .height('100%')
+
+            this.topBar()
+          }
+          .width('100%')
+          .height('100%')
+
+          BottomActionBar({
+            importing: this.importing,
+            importStage: this.importStage,
+            exporting: this.exporting,
+            onImport: (): void => {
+              this.onImport();
+            },
+            onBuiltin: (): void => {
+              this.checkBuiltin(true);
+            },
+            onExportBuiltin: (): void => {
+              this.onExportBuiltin();
+            },
+            onExport: (): void => {
+              this.onExport();
+            }
+          })
+            .margin({ bottom: 16 })
         }
         .width('100%')
         .height('100%')
-
-        BottomActionBar({
-          importing: this.importing,
-          importStage: this.importStage,
-          exporting: this.exporting,
-          onImport: (): void => {
-            this.onImport();
-          },
-          onBuiltin: (): void => {
-            this.checkBuiltin(true);
-          },
-          onExportBuiltin: (): void => {
-            this.onExportBuiltin();
-          },
-          onExport: (): void => {
-            this.onExport();
-          }
-        })
-          .margin({ bottom: 16 + this.insetBottom })
       }
       .width('100%')
       .height('100%')
-      // 沉浸（docs/16 6.2）：仅测量成功才扩展（失败回退系统避让，绝不重叠）
-      .expandSafeArea(this.immersive ? [SafeAreaType.SYSTEM] : undefined,
-        this.immersive ? [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM] : undefined)
     }
     .mode(NavigationMode.Stack)
     .hideTitleBar(true)

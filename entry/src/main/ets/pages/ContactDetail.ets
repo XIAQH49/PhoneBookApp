@@ -406,9 +406,18 @@ export struct ContactDetail {
 
   build() {
     NavDestination() {
-      Column() {
-        // 顶部栏：50vp 圆形返回 + 居中标题（姓名）+ 右侧占位（保持对称）
-        Row() {
+      Stack({ alignContent: Alignment.Top }) {
+        // 背景层：expandSafeArea 铺满状态栏/导航栏（docs/16 6.2，测量成功才扩展）
+        Column()
+          .width('100%')
+          .height('100%')
+          .backgroundColor($r('app.color.bg_page'))
+          .expandSafeArea(this.immersive ? [SafeAreaType.SYSTEM] : undefined,
+            this.immersive ? [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM] : undefined)
+
+        Column() {
+          // 顶部栏：50vp 圆形返回 + 居中标题（姓名）+ 右侧占位（保持对称）
+          Row() {
           IconButton({
             icon: '←',
             onTap: (): void => {
@@ -431,7 +440,7 @@ export struct ContactDetail {
         .constraintSize({ maxWidth: ThemeSpec.CONTENT_MAX_WIDTH_VP })
         .height($r('app.float.header_height'))
         .padding({ left: $r('app.float.space_page'), right: $r('app.float.space_page') })
-        .margin({ top: this.insetTop + 8 })
+        .margin({ top: 8 })
 
         if (!this.loaded) {
           Text('未找到该条数据')
@@ -500,9 +509,9 @@ export struct ContactDetail {
       }
       .width('100%')
       .height('100%')
-      .backgroundColor($r('app.color.bg_page'))
-      .expandSafeArea(this.immersive ? [SafeAreaType.SYSTEM] : undefined,
-        this.immersive ? [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM] : undefined)
+      }
+      .width('100%')
+      .height('100%')
     }
     .hideTitleBar(true)
     .onReady((ctx: NavDestinationContext) => {
