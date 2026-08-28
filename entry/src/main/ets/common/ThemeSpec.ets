@@ -1,8 +1,13 @@
 /**
- * 设计令牌（数值型，docs/15 ChatGPT 整理版 + docs/14 第 8 节沉浸光感）：
+ * 设计令牌（数值型，docs/15 ChatGPT 整理版 + docs/14 第 8 节沉浸光感 + 官方 uiMaterial 门控）：
  * 颜色/圆角/间距/字号等走资源引用（$r('app.color.*') / $r('app.float.*')），
  * 阴影/材质/卡片三态/设备档位等资源无法表达的参数集中于此，改一处全局生效。
+ * 沉浸光感官方 API（API 26 @ohos.arkui.uiMaterial）：ImmersiveMaterial/ImmersiveOptions
+ * （style 厚度/materialColor/colorInvert/applyShadow/interactive/lightEffect 光随指动）在本机 SDK
+ * 仅对 systemMaterial 生态（Tabs/系统弹窗）开放，普通容器属性未公开——按官方 getMaterialInfo()
+ * 应用级沉浸开关实现门控，效果参数以 docs/15 四/五节语义材质落码。
  */
+import uiMaterial from '@ohos.arkui.uiMaterial';
 
 /** 设备性能档位（docs/14 8.3；docs/15 四节三态在此基础上缩放） */
 export enum MaterialLevel {
@@ -71,12 +76,35 @@ export class ThemeSpec {
   static readonly CONTENT_MAX_WIDTH_VP: number = 1040;
   static readonly BAR_MAX_WIDTH_VP: number = 560;
 
-  // ---- 沉浸光感（docs/15 四 + docs/14 8.3）----
+  // ---- 沉浸光感（docs/15 四 + docs/14 8.3 + 官方 uiMaterial 门控）----
   /**
    * 档位覆盖开关：'' = 自动；'high' / 'middle' / 'low' 强制指定。
    * v0.7 视觉反馈 #5：沉浸光感拉满 → 固定 high（滤镜/阴影/位移/缩放全开）。
    */
   static readonly MATERIAL_LEVEL_OVERRIDE: string = 'high';
+
+  /** 系统沉浸材质是否启用（官方 getMaterialInfo() 读取；失败默认启用） */
+  static immersiveEnabled: boolean = true;
+
+  /**
+   * 官方沉浸光感门控（API 26 @ohos.arkui.uiMaterial.getMaterialInfo）：
+   * 系统配置 MaterialState.DISABLE 时关闭应用级沉浸光感（毛玻璃/光效降级为纯色+基础阴影），
+   * 与官方 FAQ「systemMaterial 是否生效」开关一致；读取异常回退启用（fail-safe）。
+   * 由 EntryAbility.onCreate 在页面加载前调用一次。
+   */
+  static initImmersiveGate(): void {
+    try {
+      const info: uiMaterial.MaterialInfo = uiMaterial.getMaterialInfo();
+      ThemeSpec.immersiveEnabled = info !== undefined && info.state !== uiMaterial.MaterialState.DISABLE;
+    } catch (e) {
+      ThemeSpec.immersiveEnabled = true;
+    }
+  }
+
+  /** 光感系数：门控关闭时（系统禁用沉浸）→ 0 */
+  static lightFactor(): number {
+    return ThemeSpec.immersiveEnabled ? 1 : 0;
+  }
 
   /** 三档完整方案参数（docs/14 8.3） */
   static levelParams(level: MaterialLevel): MaterialLevelParams {
@@ -151,7 +179,7 @@ export class ThemeSpec {
       };
     }
     t.shadowAlpha = t.shadowAlpha * lp.shadowLevel / 3;
-    t.lightOpacity = t.lightOpacity * lp.filterStrength;
+    t.lightOpacity = t.lightOpacity * lp.filterStrength * ThemeSpec.lightFactor();
     return t;
   }
 
@@ -185,7 +213,7 @@ export class ThemeSpec {
     offsetY = offsetY * m;
     scale = 1 + (scale - 1) * m;
     shadowAlpha = shadowAlpha * lp.shadowLevel / 3;
-    lightOpacity = lightOpacity * lp.filterStrength;
+    lightOpacity = lightOpacity * lp.filterStrength * ThemeSpec.lightFactor();
     const spec: CardVisualSpec = {
       offsetY: offsetY, scale: scale, shadowAlpha: shadowAlpha, lightOpacity: lightOpacity
     };

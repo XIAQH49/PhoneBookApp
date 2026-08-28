@@ -2,6 +2,7 @@ import { AbilityConstant, Configuration, ConfigurationConstant, UIAbility, Want 
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { window } from '@kit.ArkUI';
 import { DbHelper } from '../database/DbHelper';
+import { ThemeSpec } from '../common/ThemeSpec';
 
 const DOMAIN = 0x0000;
 
@@ -19,6 +20,8 @@ export default class EntryAbility extends UIAbility {
       hilog.error(DOMAIN, 'testTag', 'Failed to set colorMode. Cause: %{public}s', JSON.stringify(err));
     }
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onCreate');
+    // 官方沉浸光感门控（API 26 uiMaterial.getMaterialInfo）：系统关闭沉浸时应用降级（页面加载前调用）
+    ThemeSpec.initImmersiveGate();
     // 初始化本地数据库（幂等），页面加载前完成
     DbHelper.init(this.context).then(() => {
       hilog.info(DOMAIN, 'PhoneBook', 'Database ready');

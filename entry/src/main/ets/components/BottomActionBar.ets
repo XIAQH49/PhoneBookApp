@@ -199,8 +199,8 @@ export struct BottomActionBar {
     .height($r('app.float.action_bar_height'))
     .padding({ left: 12, right: 12, top: 8, bottom: 8 })
     .borderRadius($r('app.float.radius_bar'))
-    .backgroundColor(this.tokens().backgroundColor)
-    .backgroundBlurStyle(ThemeSpec.BAR_BLUR)
+    .backgroundColor(ThemeSpec.immersiveEnabled ? this.tokens().backgroundColor : $r('app.color.surface_card'))
+    .backgroundBlurStyle(ThemeSpec.immersiveEnabled ? ThemeSpec.BAR_BLUR : BlurStyle.NONE)
     .border({
       width: this.tokens().borderWidth,
       color: this.tokens().borderColor

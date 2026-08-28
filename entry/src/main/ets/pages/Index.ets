@@ -663,8 +663,8 @@ struct Index {
     .constraintSize({ maxWidth: ThemeSpec.CONTENT_MAX_WIDTH_VP })
     .height($r('app.float.header_height'))
     .padding({ left: $r('app.float.space_page'), right: $r('app.float.space_page') })
-    .backgroundColor($r('app.color.bar_bg'))
-    .backgroundBlurStyle(ThemeSpec.BAR_BLUR)
+    .backgroundColor(ThemeSpec.immersiveEnabled ? $r('app.color.bar_bg') : $r('app.color.bg_page'))
+    .backgroundBlurStyle(ThemeSpec.immersiveEnabled ? ThemeSpec.BAR_BLUR : BlurStyle.NONE)
     .shadow({
       radius: 28,
       color: ThemeSpec.shadowColor(0.12),
