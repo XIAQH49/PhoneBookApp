@@ -4,10 +4,10 @@ import { SemanticMaterialSurface } from './SemanticMaterialSurface';
 import { MaterialRole } from '../common/ThemeSpec';
 
 /**
- * 统计大卡（docs/15 二/3.1/九-3：首页唯一最高等级卡）：
+ * 统计大卡（docs/16 一-2 + docs/15：首页唯一最高等级卡）：
  * 高 280vp、featured-surface（EMPHASIS 语义材质 + 光线勾勒）；
  * 上半：左 已打 64fp 大数字 + /分母，右 ProgressRing；
- * 下半三等分 已打/未打/完成率；底部 当前责任人：张三 · 共N条 + 全部责任人小计。
+ * 下半三等分 已打/未打/完成率；底部单行「当前责任人：张三 ▾ · 共N条」点击进责任人选择。
  */
 @Component
 export struct StatCard {
@@ -16,6 +16,8 @@ export struct StatCard {
   @Prop allTotal: number = 0;
   @Prop allCalled: number = 0;
   @Prop assignee: string = '';
+  onAssigneeTap: () => void = () => {
+  };
 
   private percent(): number {
     return this.total > 0 ? Math.round(this.called * 100 / this.total) : 0;
@@ -110,18 +112,24 @@ export struct StatCard {
       }
       .width('100%')
 
-      Text($r('app.string.stat_assignee_hint', this.assigneeLabel(), this.total))
-        .fontSize($r('app.float.font_overline'))
-        .fontColor($r('app.color.text_secondary'))
-        .margin({ top: 14 })
-        .width('100%')
-        .textAlign(TextAlign.Center)
-      Text($r('app.string.stat_all_total_hint', this.allTotal, this.allCalled))
-        .fontSize($r('app.float.font_overline'))
-        .fontColor($r('app.color.text_tertiary'))
-        .margin({ top: 2 })
-        .width('100%')
-        .textAlign(TextAlign.Center)
+      // 单行总结（docs/16 一-2）：「当前责任人：张三 ▾ · 共 20 条」，点击进责任人选择
+      Row() {
+        Text($r('app.string.stat_assignee_hint', this.assigneeLabel(), this.total))
+          .fontSize($r('app.float.font_overline'))
+          .fontColor($r('app.color.text_secondary'))
+          .layoutWeight(1)
+          .textAlign(TextAlign.Center)
+        Text('▾')
+          .fontSize($r('app.float.font_overline'))
+          .fontColor($r('app.color.primary'))
+          .padding(6)
+      }
+      .width('100%')
+      .margin({ top: 14 })
+      .justifyContent(FlexAlign.Center)
+      .onClick(() => {
+        this.onAssigneeTap();
+      })
     }
     .width('100%')
     .constraintSize({ minHeight: $r('app.float.stat_card_height') })

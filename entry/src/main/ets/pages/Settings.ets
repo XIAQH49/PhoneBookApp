@@ -5,6 +5,8 @@ import { ConfigDao } from '../database/ConfigDao';
 import { ImportMeta } from '../model/ImportMeta';
 import { Constants } from '../common/Constants';
 import { DataResetService } from '../database/DataResetService';
+import { ContextUtil } from '../common/ContextUtil';
+import { WindowInsets } from '../common/WindowInsets';
 import { MotionSpec } from '../common/MotionSpec';
 import { ThemeSpec, MaterialRole } from '../common/ThemeSpec';
 import { IconButton } from '../components/IconButton';
@@ -24,6 +26,8 @@ export struct Settings {
   @State stripCountry: boolean = false;
   @State dataInfo: string = '';
   @State appearCard: number = 0;
+  @State immersive: boolean = false;
+  @State insetTop: number = 0;
   private stack: NavPathStack | undefined = undefined;
 
   /** NavDestination 就绪回调：记录栈引用 */
@@ -40,6 +44,12 @@ export struct Settings {
   }
 
   async aboutToAppear(): Promise<void> {
+    const ctx: common.UIAbilityContext | undefined = ContextUtil.getAbilityContext(this.getUIContext());
+    if (ctx !== undefined) {
+      const ok: boolean = await WindowInsets.load(ctx, this.getUIContext());
+      this.immersive = ok;
+      this.insetTop = WindowInsets.top();
+    }
     const c: string = await ConfigDao.get(Constants.CONFIG_CONFIRM_BEFORE_CALL);
     this.confirmBefore = c !== '0';
     const s: string = await ConfigDao.get(Constants.CONFIG_EXPORT_SCOPE);
@@ -210,6 +220,7 @@ export struct Settings {
         .constraintSize({ maxWidth: ThemeSpec.CONTENT_MAX_WIDTH_VP })
         .height($r('app.float.header_height'))
         .padding({ left: $r('app.float.space_page'), right: $r('app.float.space_page') })
+        .margin({ top: this.insetTop + 8 })
 
         Scroll() {
           Column() {
@@ -308,6 +319,8 @@ export struct Settings {
     .width('100%')
     .height('100%')
     .backgroundColor($r('app.color.bg_page'))
+    .expandSafeArea(this.immersive ? [SafeAreaType.SYSTEM] : undefined,
+      this.immersive ? [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM] : undefined)
     .hideTitleBar(true)
     .onReady((ctx: NavDestinationContext) => {
       this.handleReady(ctx);

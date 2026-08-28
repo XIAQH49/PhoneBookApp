@@ -1,14 +1,16 @@
 import { MotionSpec } from '../common/MotionSpec';
 import { MaterialRole } from '../common/ThemeSpec';
 import { StatusPill } from './StatusPill';
+import { IconButton } from './IconButton';
 import { SemanticMaterialSurface } from './SemanticMaterialSurface';
 
 /**
- * 名单卡片（v0.7 视觉反馈 #1/#8 修订版）：
- * **固定单列**、紧凑高度（min 132vp，不再双列 190vp——双列下姓名被截断）；
- * 姓名 24fp/Bold（单列全宽显示）+ 右上 StatusPill；号码 18fp；工号 14fp + **无背景拨号图标**（纯 📞 primary）。
- * 卡片空白点击进详情、拨号只拨号（独立 onClick）。
- * 语义材质 = normal-surface（不每卡发光）；入场淡入+上移+回弹错峰。
+ * 名单宽卡（docs/16 一-5 / 2.6 定稿，单列）：
+ * 定高 190vp（docs/16 6.3：定高才能被 LazyForEach 预估尺寸、提前预渲染）、padding 20vp、radius 24vp；
+ * 姓名 24fp/Bold + 右上 StatusPill（已打=绿/未打=橙）；号码 18fp（多号码显示"手机 ×N"）；
+ * 工号 14fp + 右下圆形拨号钮 50vp（primary 底白图标，独立 onClick 不跳详情）。
+ * 卡片点击进详情；语义材质 = normal-surface（不每卡发光）；入场淡入+上移+回弹错峰。
+ * 展示串（号码/"手机×N"/状态文案）由父级在视图层预计算后传入（docs/16 6.3：item 只布局）。
  */
 @Component
 export struct PersonCard {
@@ -63,7 +65,7 @@ export struct PersonCard {
         .maxLines(1)
         .textOverflow({ overflow: TextOverflow.Ellipsis })
         .width('100%')
-        .margin({ top: 8 })
+        .margin({ top: 10 })
 
       Row() {
         Text(this.empNo !== '' ? '工号 ' + this.empNo : '')
@@ -72,22 +74,22 @@ export struct PersonCard {
           .maxLines(1)
           .textOverflow({ overflow: TextOverflow.Ellipsis })
           .layoutWeight(1)
-        // 无背景拨号图标（视觉反馈 #8）
-        Text('📞')
-          .fontSize(24)
-          .fontColor($r('app.color.primary'))
-          .padding({ left: 12, top: 4, bottom: 4 })
-          .onClick(() => {
+        IconButton({
+          icon: '📞',
+          filled: true,
+          btnSize: 50,
+          fontSize: 24,
+          onTap: (): void => {
             this.onCall();
-          })
+          }
+        })
       }
       .width('100%')
-      .margin({ top: 6 })
       .alignItems(VerticalAlign.Center)
     }
     .width('100%')
-    .constraintSize({ minHeight: $r('app.float.person_card_height') })
-    .padding(16)
+    .height($r('app.float.person_card_height'))
+    .padding(20)
     .justifyContent(FlexAlign.SpaceBetween)
   }
 

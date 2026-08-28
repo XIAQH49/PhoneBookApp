@@ -14,6 +14,7 @@ import { ConfigDao } from '../database/ConfigDao';
 import { DbHelper } from '../database/DbHelper';
 import { CallListDao } from '../database/CallListDao';
 import { ThemeSpec } from '../common/ThemeSpec';
+import { WindowInsets } from '../common/WindowInsets';
 import { StatCard } from '../components/StatCard';
 import { EmptyView } from '../components/EmptyView';
 import { PersonCard } from '../components/PersonCard';
@@ -32,14 +33,15 @@ const FILTER_UNCALLED: number = 0;
 const FILTER_CALLED: number = 1;
 
 /**
- * 主列表页（FR-3 / FR-4 / FR-6；v0.7 第二轮视觉反馈修订）：
- * - 顶栏毛玻璃（bar_bg + COMPONENT_ULTRA_THICK，随内容滚动悬浮，反馈#7）；
- * - 左上角：状态筛选下拉菜单（全部 ▾，菜单带计数）+ 搜索按钮（点开内联搜索栏，反馈#2/#3）；
- * - 责任人/设置入口为无背景纯文本/图标（反馈#4）；
- * - PersonCard 固定单列紧凑卡（反馈#1/#8）；底栏 60vp 收窄、无按压底色、光感 high 档（反馈#5）；
- * - 沉浸式全屏（EntryAbility setWindowLayoutFullScreen，反馈#6）；底栏预留 132vp。
- *
- * M2-2：router → Navigation 迁移。本页为导航宿主；子页 pop 携带结果触发 onPop 回调。
+ * 主列表页（docs/16 布局定稿）：
+ * - 顶栏：左大标题「外呼名单」；右三圆钮 搜索/更多/设置（毛玻璃 Thick+半透明+悬浮阴影，滚动内容从其下方穿过，6.1）；
+ * - 统计大卡：大数字+圆环+三等栏+「当前责任人：张三 ▾ · 共N条」（点击进责任人选择）；
+ * - 搜索：点顶栏🔍 → 统计卡下方滑入圆角搜索行（输入即过滤，再点收起）；
+ * - 更多：popup 筛选菜单 全部/未打/已打（选中高亮）；
+ * - 名单：单列宽卡 190vp 定高（6.3 预渲染流畅：cachedCount(10)/稳定 key/滚动条 Auto 半透明主色/loadMore 占位）；
+ * - 底部：悬浮胶囊操作栏（毛玻璃+光感阴影）四功能；
+ * - 沉浸（6.2）：根容器测量成功才 expandSafeArea（失败回退避让，绝不重叠），顶栏/底部按安全区 padding。
+ * M2-2：router→Navigation；子页 pop 带结果触发 onPop 刷新（400ms 延迟，v0.5.4 已修勿动）。
  */
 @Entry
 @Component
@@ -59,9 +61,13 @@ struct Index {
   @State importing: boolean = false;
   @State importStage: string = '';
   @State exporting: boolean = false;
+  @State loadingMore: boolean = false;
   @State showNumberSheet: boolean = false;
   @State sheetNumbers: string[] = [];
   @State sheetName: string = '';
+  @State immersive: boolean = false;
+  @State insetTop: number = 0;
+  @State insetBottom: number = 0;
   private sheetRecord: CallRecord = new CallRecord();
   private confirmName: string = '';
   private confirmNumber: string = '';
@@ -98,6 +104,14 @@ struct Index {
     try {
       // 等待数据库就绪（冷启动 EntryAbility 异步初始化可能尚未完成，避免瞬时失败）
       await DbHelper.ready();
+      // 沉浸安全区测量（docs/16 6.2）：成功才 expandSafeArea，失败回退避让保证不重叠
+      const ctx: common.UIAbilityContext | undefined = ContextUtil.getAbilityContext(this.getUIContext());
+      if (ctx !== undefined) {
+        const ok: boolean = await WindowInsets.load(ctx, this.getUIContext());
+        this.immersive = ok;
+        this.insetTop = WindowInsets.top();
+        this.insetBottom = WindowInsets.bottom();
+      }
       await this.vm.init();
       await this.syncAll();
       // v0.5：内置名单变化检测（每次启动仅一次，内容哈希变化才导入，已打状态保留）
@@ -182,7 +196,7 @@ struct Index {
     const r: CountResult = await this.vm.refreshStats();
     this.statTotal = r.total;
     this.statCalled = r.called;
-    // 全部责任人总计（v0.5.1 功能保留）
+    // 全部责任人总计（内部统计仅用于诊断/导出，不再展示第二行——docs/16 一-2 单行总结）
     const all: CountResult = await CallListDao.countAllByStatus();
     this.allTotal = all.total;
     this.allCalled = all.called;
@@ -217,7 +231,7 @@ struct Index {
     }, 300);
   }
 
-  /** 收起搜索：清空关键字并恢复全量列表 */
+  /** 搜索收起：清空关键字并恢复全量列表（再点收起，docs/16 一-3） */
   closeSearch(): void {
     this.searchOpen = false;
     if (this.searchText !== '') {
@@ -378,6 +392,19 @@ struct Index {
     this.uiToast(result.message);
   }
 
+  /** loadMore（docs/16 6.3：onReachEnd 异步加载 + 轻量占位，避免列表"跳"） */
+  async loadMore(): Promise<void> {
+    if (this.loadingMore) {
+      return;
+    }
+    this.loadingMore = true;
+    try {
+      await this.vm.loadMore();
+    } finally {
+      this.loadingMore = false;
+    }
+  }
+
   // ---- 导航（M2-2：NavPathStack 压栈；子页 pop 带结果触发 onPop）----
   goAssigneePicker(): void {
     const emptyParam: Record<string, Object> = {};
@@ -455,21 +482,7 @@ struct Index {
     })
   }
 
-  private assigneeLabel(): string {
-    return (this.assigneeName === '' ? '未分配' : this.assigneeName) + ' ⌄';
-  }
-
-  private filterLabel(): string {
-    if (this.filterIdx === 1) {
-      return '未打';
-    }
-    if (this.filterIdx === 2) {
-      return '已打';
-    }
-    return '全部';
-  }
-
-  /** 筛选下拉菜单（反馈#2：左上角下拉，菜单带计数） */
+  /** 筛选菜单（docs/16 一-4：全部/未打/已打，选中高亮） */
   private filterMenu(): MenuElement[] {
     const uncalled: number = this.statTotal - this.statCalled;
     const items: MenuElement[] = [
@@ -495,6 +508,7 @@ struct Index {
     return items;
   }
 
+  /** 展示串预计算（docs/16 6.3：item 只布局），视图层调用 */
   private phoneText(record: CallRecord): string {
     return record.phoneNumbers.length > 1 ? '手机 ×' + record.phoneNumbers.length : record.phoneRaw;
   }
@@ -530,99 +544,102 @@ struct Index {
           called: this.statCalled,
           allTotal: this.allTotal,
           allCalled: this.allCalled,
-          assignee: this.assigneeName
+          assignee: this.assigneeName,
+          onAssigneeTap: (): void => {
+            this.goAssigneePicker();
+          }
         })
+
+        // 搜索行：点顶栏🔍滑入（docs/16 一-3），圆角 22vp
+        if (this.searchOpen) {
+          Row() {
+            Text('🔍')
+              .fontSize(16)
+              .margin({ left: 16 })
+            TextInput({ placeholder: $r('app.string.search_hint'), text: this.searchText })
+              .fontSize($r('app.float.font_body'))
+              .fontColor($r('app.color.text_primary'))
+              .backgroundColor(Color.Transparent)
+              .height($r('app.float.search_height'))
+              .layoutWeight(1)
+              .margin({ left: 8, right: 8 })
+              .onChange((v: string) => {
+                this.onSearchChange(v);
+              })
+            Text('✕')
+              .fontSize(18)
+              .fontColor($r('app.color.text_secondary'))
+              .padding(8)
+              .onClick(() => {
+                this.closeSearch();
+              })
+          }
+          .width('100%')
+          .height($r('app.float.search_height'))
+          .backgroundColor($r('app.color.surface_card'))
+          .border({ width: 1, color: $r('app.color.divider') })
+          .borderRadius($r('app.float.radius_search'))
+          .margin({ top: $r('app.float.space_between'), bottom: $r('app.float.space_between') })
+          .transition(TransitionEffect.OPACITY.combine(TransitionEffect.translate({ y: -12 })))
+        }
       }
       .width('100%')
       .margin({ bottom: $r('app.float.space_group') })
     }
   }
 
-  /** 毛玻璃顶栏（反馈#7）：标题 + 筛选下拉 + 搜索按钮 + 责任人 + 设置 */
+  /** 毛玻璃顶栏（docs/16 6.1）：大标题 + 搜索/更多/设置三圆钮，覆盖滚动内容 */
   @Builder
   topBar() {
-    Column() {
-      Row() {
-        Text($r('app.string.home_title'))
-          .fontSize($r('app.float.font_title'))
-          .fontWeight(FontWeight.Bold)
-          .fontColor($r('app.color.text_primary'))
-        // 左上角：筛选下拉 + 搜索按钮（反馈#2/#3）
-        Text(this.filterLabel() + ' ▾')
-          .fontSize($r('app.float.font_body'))
-          .fontColor($r('app.color.primary'))
-          .padding({ left: 6, top: 8, bottom: 8 })
-          .margin({ left: 14 })
-          .bindMenu(this.filterMenu())
-        IconButton({
-          icon: '🔍',
-          btnSize: 36,
-          fontSize: 20,
-          onTap: (): void => {
-            this.searchOpen = !this.searchOpen;
-            if (!this.searchOpen) {
-              this.closeSearch();
-            }
+    Row() {
+      Text($r('app.string.home_title'))
+        .fontSize($r('app.float.font_title'))
+        .fontWeight(FontWeight.Bold)
+        .fontColor($r('app.color.text_primary'))
+      Blank()
+      IconButton({
+        icon: '🔍',
+        btnSize: 50,
+        fontSize: 24,
+        onTap: (): void => {
+          this.searchOpen = !this.searchOpen;
+          if (!this.searchOpen) {
+            this.closeSearch();
           }
-        })
-          .margin({ left: 4 })
-        Blank()
-        Text(this.assigneeLabel())
-          .fontSize($r('app.float.font_body'))
-          .fontColor($r('app.color.primary'))
-          .padding({ left: 8, top: 8, bottom: 8 })
-          .onClick(() => {
-            this.goAssigneePicker();
-          })
-        IconButton({
-          icon: ' ⚙',
-          onTap: (): void => {
-            this.goSettings();
-          }
-        })
-          .margin({ left: 8 })
-      }
-      .width('100%')
-      .height($r('app.float.header_height'))
-      .alignItems(VerticalAlign.Center)
-
-      // 搜索展开（内联，反馈#3）
-      if (this.searchOpen) {
-        Row() {
-          Text('🔍')
-            .fontSize(16)
-            .margin({ left: 16 })
-          TextInput({ placeholder: $r('app.string.search_hint'), text: this.searchText })
-            .fontSize($r('app.float.font_body'))
-            .fontColor($r('app.color.text_primary'))
-            .backgroundColor(Color.Transparent)
-            .height($r('app.float.search_height'))
-            .layoutWeight(1)
-            .margin({ left: 8, right: 8 })
-            .onChange((v: string) => {
-              this.onSearchChange(v);
-            })
-          Text('✕')
-            .fontSize(18)
-            .fontColor($r('app.color.text_secondary'))
-            .padding(8)
-            .onClick(() => {
-              this.closeSearch();
-            })
         }
-        .width('100%')
-        .height($r('app.float.search_height'))
-        .backgroundColor($r('app.color.surface_card'))
-        .border({ width: 1, color: $r('app.color.divider') })
-        .borderRadius($r('app.float.radius_search'))
-        .margin({ top: 4, bottom: 12 })
-      }
+      })
+      IconButton({
+        icon: '⋯',
+        btnSize: 50,
+        fontSize: 24,
+        onTap: (): void => {
+          // bindMenu 直接挂在该钮上
+        }
+      })
+        .margin({ left: 12 })
+        .bindMenu(this.filterMenu())
+      IconButton({
+        icon: ' ⚙',
+        btnSize: 50,
+        fontSize: 24,
+        onTap: (): void => {
+          this.goSettings();
+        }
+      })
+        .margin({ left: 12 })
     }
     .width('100%')
     .constraintSize({ maxWidth: ThemeSpec.CONTENT_MAX_WIDTH_VP })
-    .padding({ left: $r('app.float.space_page'), right: $r('app.float.space_page') })
+    .height($r('app.float.header_height'))
+    .padding({ left: $r('app.float.space_page'), right: $r('app.float.space_page'), top: this.insetTop })
     .backgroundColor($r('app.color.bar_bg'))
     .backgroundBlurStyle(ThemeSpec.BAR_BLUR)
+    .shadow({
+      radius: 28,
+      color: ThemeSpec.shadowColor(0.12),
+      offsetX: 0,
+      offsetY: 8
+    })
   }
 
   @Builder
@@ -639,23 +656,43 @@ struct Index {
         this.gridHeader()
         LazyForEach(this.vm, (record: CallRecord, index: number) => {
           this.personItem(record, index)
+          // key = row.id + 数据版本（版本号仅在 refreshList 真实数据变化时递增——docs/16 6.3）
         }, (record: CallRecord) => record.id.toString() + '_' + this.vm.version())
+        // loadMore 轻量占位（docs/16 6.3：异步加载期间保持旧条目 + 尾部占位，避免列表"跳"）
+        if (this.loadingMore) {
+          GridItem() {
+            Row() {
+              LoadingProgress()
+                .width(24)
+                .height(24)
+                .color($r('app.color.primary'))
+              Text('加载中…')
+                .fontSize($r('app.float.font_caption'))
+                .fontColor($r('app.color.text_tertiary'))
+                .margin({ left: 8 })
+            }
+            .width('100%')
+            .height(56)
+            .justifyContent(FlexAlign.Center)
+          }
+        }
       }
       .columnsTemplate('1fr')
       .rowsGap($r('app.float.space_between'))
-      .cachedCount(8)
+      .cachedCount(10)
       .constraintSize({ maxWidth: ThemeSpec.CONTENT_MAX_WIDTH_VP })
       .padding({
         left: $r('app.float.space_page'),
         right: $r('app.float.space_page'),
-        top: this.searchOpen ? 148 : 84,
-        bottom: $r('app.float.grid_bottom_padding')
+        top: this.insetTop + 72 + 8 + (this.searchOpen ? 64 : 0),
+        bottom: this.insetBottom + 76 + 32 + 32
       })
       .width('100%')
       .height('100%')
-      .scrollBar(BarState.Off)
+      .scrollBar(BarState.Auto)
+      .scrollBarColor('rgba(10,132,255,0.3)')
       .onReachEnd(() => {
-        this.vm.loadMore();
+        this.loadMore();
       })
     }
   }
@@ -693,10 +730,13 @@ struct Index {
             this.onExport();
           }
         })
-          .margin({ bottom: 16 })
+          .margin({ bottom: 16 + this.insetBottom })
       }
       .width('100%')
       .height('100%')
+      // 沉浸（docs/16 6.2）：仅测量成功才扩展（失败回退系统避让，绝不重叠）
+      .expandSafeArea(this.immersive ? [SafeAreaType.SYSTEM] : undefined,
+        this.immersive ? [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM] : undefined)
     }
     .mode(NavigationMode.Stack)
     .hideTitleBar(true)

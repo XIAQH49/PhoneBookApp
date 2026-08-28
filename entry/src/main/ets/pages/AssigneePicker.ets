@@ -2,6 +2,9 @@ import { CallListDao } from '../database/CallListDao';
 import { ConfigDao } from '../database/ConfigDao';
 import { CountResult } from '../model/CallRecord';
 import { Constants } from '../common/Constants';
+import { common } from '@kit.AbilityKit';
+import { ContextUtil } from '../common/ContextUtil';
+import { WindowInsets } from '../common/WindowInsets';
 import { ThemeSpec } from '../common/ThemeSpec';
 import { IconButton } from '../components/IconButton';
 
@@ -20,6 +23,8 @@ export struct AssigneePicker {
   @State keyword: string = '';
   @State current: string = '';
   @State statsMap: Record<string, CountResult> = {};
+  @State immersive: boolean = false;
+  @State insetTop: number = 0;
   private stack: NavPathStack | undefined = undefined;
 
   /** NavDestination 就绪回调：记录栈引用 */
@@ -36,6 +41,12 @@ export struct AssigneePicker {
   }
 
   async aboutToAppear(): Promise<void> {
+    const ctx: common.UIAbilityContext | undefined = ContextUtil.getAbilityContext(this.getUIContext());
+    if (ctx !== undefined) {
+      const ok: boolean = await WindowInsets.load(ctx, this.getUIContext());
+      this.immersive = ok;
+      this.insetTop = WindowInsets.top();
+    }
     this.list = await CallListDao.getAssigneeList();
     this.current = await ConfigDao.getLastAssignee();
     await this.loadStats();
@@ -94,6 +105,7 @@ export struct AssigneePicker {
         .constraintSize({ maxWidth: ThemeSpec.CONTENT_MAX_WIDTH_VP })
         .height($r('app.float.header_height'))
         .padding({ left: $r('app.float.space_page'), right: $r('app.float.space_page') })
+        .margin({ top: this.insetTop + 8 })
 
         // 搜索胶囊（radius_search 22vp）
         Row() {
@@ -178,6 +190,8 @@ export struct AssigneePicker {
     .width('100%')
     .height('100%')
     .backgroundColor($r('app.color.bg_page'))
+    .expandSafeArea(this.immersive ? [SafeAreaType.SYSTEM] : undefined,
+      this.immersive ? [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM] : undefined)
     .hideTitleBar(true)
     .onReady((ctx: NavDestinationContext) => {
       this.handleReady(ctx);
