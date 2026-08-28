@@ -1,5 +1,4 @@
 import { common } from '@kit.AbilityKit';
-import { mediaquery } from '@kit.ArkUI';
 import { MainViewModel } from '../viewmodel/MainViewModel';
 import { CallRecord, CountResult } from '../model/CallRecord';
 import { Constants } from '../common/Constants';
@@ -36,7 +35,7 @@ const FILTER_CALLED: number = 1;
 /**
  * 主列表页（FR-3 / FR-4 / FR-6；v0.7 UI 大重构，docs/14 4.1）：
  * 毛玻璃顶栏（大标题+责任人胶囊+圆形设置钮）+ 统计大卡 + 搜索胶囊 + 筛选胶囊 +
- * PersonCard 双列网格（Grid 2 列，<600vp 单列降级）+ 悬浮胶囊操作栏（4 动作）。
+ * PersonCard 单列卡片列表（Grid 1 列，用户拍板：不做双列适配）+ 悬浮胶囊操作栏（4 动作）。
  *
  * M2-2：router → Navigation 迁移。本页为导航宿主：子页（ContactDetail/Settings/
  * AssigneePicker）均为 NavDestination，经 NavPathStack.pushPathByName 压栈；
@@ -62,7 +61,6 @@ struct Index {
   @State showNumberSheet: boolean = false;
   @State sheetNumbers: string[] = [];
   @State sheetName: string = '';
-  @State isWide: boolean = false;
   private sheetRecord: CallRecord = new CallRecord();
   private confirmName: string = '';
   private confirmNumber: string = '';
@@ -73,17 +71,6 @@ struct Index {
   private builtinChecked: boolean = false;
 
   aboutToAppear(): void {
-    // 响应式断点（docs/14 4.1 勘误后：<360vp 单列，≥360vp 双列）
-    try {
-      const listener: mediaquery.MediaQueryListener = this.getUIContext().getMediaQuery()
-        .matchMediaSync('(min-width: ' + ThemeSpec.BREAKPOINT_WIDE_VP + 'vp)');
-      this.isWide = listener.matches;
-      listener.on('change', (m: mediaquery.MediaQueryResult) => {
-        this.isWide = m.matches;
-      });
-    } catch (e) {
-      this.isWide = true;
-    }
     this.initPage();
   }
 
@@ -532,8 +519,6 @@ struct Index {
       }
       .width('100%')
     }
-    .columnStart(0)
-    .columnEnd(this.isWide ? 1 : 0)
   }
 
   @Builder
@@ -583,7 +568,7 @@ struct Index {
           this.personItem(record, index)
         }, (record: CallRecord) => record.id.toString() + '_' + this.vm.version())
       }
-      .columnsTemplate(this.isWide ? '1fr 1fr' : '1fr')
+      .columnsTemplate('1fr')
       .columnsGap($r('app.float.space_between'))
       .rowsGap($r('app.float.space_between'))
       .padding({
