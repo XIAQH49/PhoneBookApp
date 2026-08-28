@@ -67,8 +67,8 @@ export interface CardVisualSpec {
 }
 
 export class ThemeSpec {
-  // ---- 毛玻璃（docs/15 校对#6：只给 BottomActionBar 浮层）----
-  static readonly BAR_BLUR: BlurStyle = BlurStyle.COMPONENT_ULTRA_THICK;
+  // ---- 毛玻璃（docs/15 校对#6：只给浮层；COMPONENT_ULTRA_THICK 真机观感为纯色（降级）→ 换系统背景语义最厚档，模糊可感知）----
+  static readonly BAR_BLUR: BlurStyle = BlurStyle.BACKGROUND_ULTRA_THICK;
   /** 浮层描边（docs/15 四-floating-tool：border rgba(255,255,255,0.55)） */
   static readonly FLOATING_BORDER_COLOR: string = 'rgba(255,255,255,0.55)';
 

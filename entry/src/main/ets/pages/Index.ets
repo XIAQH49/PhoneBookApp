@@ -62,6 +62,7 @@ struct Index {
   @State importStage: string = '';
   @State exporting: boolean = false;
   @State loadingMore: boolean = false;
+  @State revealOnce: boolean = true;
   @State showNumberSheet: boolean = false;
   @State sheetNumbers: string[] = [];
   @State sheetName: string = '';
@@ -106,6 +107,11 @@ struct Index {
       await DbHelper.ready();
       await this.vm.init();
       await this.syncAll();
+      // 首屏入场动画只在首次数据出现时播放（错峰 35ms）；之后新建卡片直接显示，
+      // 避免"上滑才渲染/弹入"观感（cachedCount 预建后仍重播 aboutToAppear 动画所致）
+      setTimeout(() => {
+        this.revealOnce = false;
+      }, 900);
       // v0.5：内置名单变化检测（每次启动仅一次，内容哈希变化才导入，已打状态保留）
       if (!this.builtinChecked) {
         this.builtinChecked = true;
@@ -553,6 +559,7 @@ struct Index {
         phoneText: this.phoneText(record),
         empNo: record.empNo,
         called: record.called,
+        animateIn: this.revealOnce,
         staggerIndex: index,
         onToggle: (): void => {
           this.onToggle(record, index, !record.called);
@@ -729,7 +736,7 @@ struct Index {
         left: $r('app.float.space_page'),
         right: $r('app.float.space_page'),
         top: 72 + 8 + (this.searchOpen ? 64 : 0),
-        bottom: 76 + 32 + 16 + 32
+        bottom: 48
       })
       .width('100%')
       .height('100%')

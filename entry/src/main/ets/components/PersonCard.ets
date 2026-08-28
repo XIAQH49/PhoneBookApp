@@ -18,6 +18,8 @@ export struct PersonCard {
   @Prop phoneText: string = '';
   @Prop empNo: string = '';
   @Prop called: boolean = false;
+  /** 仅首屏数据出现时播放入场动画（错峰 35ms）；滚动预渲染/后续刷新直接显示（docs/16 6.3：预建即显示，无"滑到才渲染"） */
+  @Prop animateIn: boolean = false;
   staggerIndex: number = 0;
   onToggle: () => void = () => {
   };
@@ -28,6 +30,10 @@ export struct PersonCard {
   @State appear: boolean = false;
 
   aboutToAppear(): void {
+    if (!this.animateIn) {
+      this.appear = true;
+      return;
+    }
     const delay: number = Math.min(this.staggerIndex * MotionSpec.STAGGER, MotionSpec.STAGGER_MAX);
     setTimeout(() => {
       this.getUIContext().animateTo({ curve: MotionSpec.entrance() }, () => {
