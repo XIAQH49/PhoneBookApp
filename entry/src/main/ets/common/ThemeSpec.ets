@@ -143,39 +143,39 @@ export class ThemeSpec {
     return MaterialLevel.MIDDLE;
   }
 
-  /** 语义材质 → 参数令牌（docs/15 四，按设备档位缩放） */
+  /** 语义材质 → 参数令牌（docs/15 四；按设备档位缩放；效果开至最大档——增强值见各角色注释） */
   static resolveMaterial(role: MaterialRole, level: MaterialLevel): MaterialTokens {
     const lp: MaterialLevelParams = ThemeSpec.levelParams(level);
     let t: MaterialTokens;
     if (role === MaterialRole.PRIMARY_ACTION) {
-      // primary 底 #FFF 字；shadowRadius 12/alpha 0.16/offsetY 4
+      // primary 底 #FFF 字；shadowRadius 16/alpha 0.20/offsetY 6（最大档增强）
       t = {
         backgroundColor: $r('app.color.primary'), borderColor: $r('app.color.primary'), borderWidth: 0,
-        shadowRadius: 12, shadowOffsetY: 4, shadowAlpha: 0.16, lightOpacity: 0
+        shadowRadius: 16, shadowOffsetY: 6, shadowAlpha: 0.20, lightOpacity: 0
       };
     } else if (role === MaterialRole.FLOATING_TOOL) {
-      // rgba(surface,0.82) + blur ultra-thick + border rgba(255,255,255,0.55) + shadowRadius 28/alpha 0.12/offsetY 8
+      // rgba(surface,0.72) + blur ultra-thick + border rgba(255,255,255,0.55) + shadowRadius 32/alpha 0.18/offsetY 10（最大档增强）
       t = {
         backgroundColor: $r('app.color.bar_bg'), borderColor: ThemeSpec.FLOATING_BORDER_COLOR,
-        borderWidth: lp.borderWidth, shadowRadius: 28, shadowOffsetY: 8, shadowAlpha: 0.12, lightOpacity: 0
+        borderWidth: lp.borderWidth, shadowRadius: 32, shadowOffsetY: 10, shadowAlpha: 0.18, lightOpacity: 0.06
       };
     } else if (role === MaterialRole.FEATURED_SURFACE) {
-      // surface_card + shadowRadius 22/alpha 0.08/offsetY 6；Featured 态高光见 resolveCardVisualSpec
+      // surface_card + shadowRadius 28/alpha 0.14/offsetY 8（最大档增强）
       t = {
         backgroundColor: $r('app.color.surface_card'), borderColor: $r('app.color.selection_border'),
-        borderWidth: 0, shadowRadius: 22, shadowOffsetY: 6, shadowAlpha: 0.08, lightOpacity: 0
+        borderWidth: 0, shadowRadius: 28, shadowOffsetY: 8, shadowAlpha: 0.14, lightOpacity: 0.10
       };
     } else if (role === MaterialRole.SELECTION) {
       // primary_soft 底 + border primary@12%
       t = {
         backgroundColor: $r('app.color.primary_soft'), borderColor: $r('app.color.selection_border'),
-        borderWidth: lp.borderWidth, shadowRadius: 0, shadowOffsetY: 0, shadowAlpha: 0, lightOpacity: 0
+        borderWidth: lp.borderWidth, shadowRadius: 0, shadowOffsetY: 0, shadowAlpha: 0, lightOpacity: 0.06
       };
     } else {
-      // normal-surface：surface_card + shadowRadius 16/alpha 0.055/offsetY 4
+      // normal-surface：surface_card + shadowRadius 20/alpha 0.08/offsetY 6（最大档增强）
       t = {
         backgroundColor: $r('app.color.surface_card'), borderColor: $r('app.color.divider'),
-        borderWidth: lp.borderWidth, shadowRadius: 16, shadowOffsetY: 4, shadowAlpha: 0.055, lightOpacity: 0
+        borderWidth: lp.borderWidth, shadowRadius: 20, shadowOffsetY: 6, shadowAlpha: 0.08, lightOpacity: 0.03
       };
     }
     t.shadowAlpha = t.shadowAlpha * lp.shadowLevel / 3;
@@ -184,30 +184,30 @@ export class ThemeSpec {
   }
 
   /**
-   * 状态 → 视觉 spec（docs/15 四-卡片三态，按设备档位缩放）：
-   * Default scale 1.0/offsetY 0/shadowAlpha 0.055/lightOpacity 0；
-   * Pressed scale 0.985/offsetY 1/shadowAlpha 0.025/lightOpacity 0.04；
-   * Featured/Selected scale 1.0/offsetY −2/shadowAlpha 0.10/lightOpacity 0.08。
+   * 状态 → 视觉 spec（docs/15 四-卡片三态，按设备档位缩放；最大档增强值）：
+   * Default scale 1.0/offsetY 0/shadowAlpha 0.08/lightOpacity 0.03；
+   * Pressed scale 0.985/offsetY 1/shadowAlpha 0.025/lightOpacity 0.10（光随指动增强）；
+   * Featured/Selected scale 1.0/offsetY −3/shadowAlpha 0.14/lightOpacity 0.14（光线勾勒增强）。
    */
   static resolveCardVisualSpec(state: CardInteractionState, level: MaterialLevel,
     emphasis: boolean): CardVisualSpec {
     const lp: MaterialLevelParams = ThemeSpec.levelParams(level);
     let offsetY: number = 0;
     let scale: number = 1.0;
-    let shadowAlpha: number = 0.055;
-    let lightOpacity: number = 0;
+    let shadowAlpha: number = 0.08;
+    let lightOpacity: number = 0.03;
     if (emphasis && state === CardInteractionState.IDLE) {
       // Featured/Selected：微上移 + 阴影加深 + 边缘高光（光线勾勒）
-      offsetY = -2;
+      offsetY = -3;
       scale = 1.0;
-      shadowAlpha = 0.10;
-      lightOpacity = 0.08;
+      shadowAlpha = 0.14;
+      lightOpacity = 0.14;
     } else if (state === CardInteractionState.PRESSED) {
-      // 按压：微下移 + 微缩小 + 阴影变浅（卡片贴向屏幕）+ 边缘高光微亮（光随指动）
+      // 按压：微下移 + 微缩小 + 阴影变浅（卡片贴向屏幕）+ 边缘高光增强（光随指动）
       offsetY = 1;
       scale = 0.985;
       shadowAlpha = 0.025;
-      lightOpacity = 0.04;
+      lightOpacity = 0.10;
     }
     const m: number = lp.motionScale;
     offsetY = offsetY * m;

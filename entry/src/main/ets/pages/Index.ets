@@ -620,57 +620,70 @@ struct Index {
     }
   }
 
-  /** 毛玻璃顶栏（docs/16 6.1）：大标题 + 搜索/更多/设置三圆钮，覆盖滚动内容（内容层已避让安全区） */
+  /** 毛玻璃顶栏（docs/16 6.1）：大标题 + 搜索/更多/设置三圆钮，覆盖滚动内容；下缘光线勾勒（最大档） */
   @Builder
   topBar() {
-    Row() {
-      Text($r('app.string.home_title'))
-        .fontSize($r('app.float.font_title'))
-        .fontWeight(FontWeight.Bold)
-        .fontColor($r('app.color.text_primary'))
-      Blank()
-      IconButton({
-        icon: '🔍',
-        btnSize: 50,
-        fontSize: 24,
-        onTap: (): void => {
-          this.searchOpen = !this.searchOpen;
-          if (!this.searchOpen) {
-            this.closeSearch();
+    Stack({ alignContent: Alignment.Bottom }) {
+      Row() {
+        Text($r('app.string.home_title'))
+          .fontSize($r('app.float.font_title'))
+          .fontWeight(FontWeight.Bold)
+          .fontColor($r('app.color.text_primary'))
+        Blank()
+        IconButton({
+          icon: '🔍',
+          btnSize: 50,
+          fontSize: 24,
+          onTap: (): void => {
+            this.searchOpen = !this.searchOpen;
+            if (!this.searchOpen) {
+              this.closeSearch();
+            }
           }
-        }
+        })
+        IconButton({
+          icon: '⋯',
+          btnSize: 50,
+          fontSize: 24,
+          onTap: (): void => {
+            this.filterMenuOpen = !this.filterMenuOpen;
+          }
+        })
+          .margin({ left: 12 })
+        IconButton({
+          icon: ' ⚙',
+          btnSize: 50,
+          fontSize: 24,
+          onTap: (): void => {
+            this.goSettings();
+          }
+        })
+          .margin({ left: 12 })
+      }
+      .width('100%')
+      .height($r('app.float.header_height'))
+      .padding({ left: $r('app.float.space_page'), right: $r('app.float.space_page') })
+      .backgroundColor(ThemeSpec.immersiveEnabled ? $r('app.color.bar_bg') : $r('app.color.bg_page'))
+      .backgroundBlurStyle(ThemeSpec.immersiveEnabled ? ThemeSpec.BAR_BLUR : BlurStyle.NONE)
+      .shadow({
+        radius: 28,
+        color: ThemeSpec.shadowColor(0.12),
+        offsetX: 0,
+        offsetY: 8
       })
-      IconButton({
-        icon: '⋯',
-        btnSize: 50,
-        fontSize: 24,
-        onTap: (): void => {
-          this.filterMenuOpen = !this.filterMenuOpen;
-        }
-      })
-        .margin({ left: 12 })
-      IconButton({
-        icon: ' ⚙',
-        btnSize: 50,
-        fontSize: 24,
-        onTap: (): void => {
-          this.goSettings();
-        }
-      })
-        .margin({ left: 12 })
+
+      // 下缘光线勾勒（官方"光线勾勒"等效：白 0.14 → 0 渐变）
+      Stack()
+        .width('100%')
+        .height(3)
+        .linearGradient({
+          angle: 270,
+          colors: [[ThemeSpec.glowColor(0.14), 0.0], ['rgba(255,255,255,0)', 1.0]]
+        })
+        .hitTestBehavior(HitTestMode.None)
     }
     .width('100%')
     .constraintSize({ maxWidth: ThemeSpec.CONTENT_MAX_WIDTH_VP })
-    .height($r('app.float.header_height'))
-    .padding({ left: $r('app.float.space_page'), right: $r('app.float.space_page') })
-    .backgroundColor(ThemeSpec.immersiveEnabled ? $r('app.color.bar_bg') : $r('app.color.bg_page'))
-    .backgroundBlurStyle(ThemeSpec.immersiveEnabled ? ThemeSpec.BAR_BLUR : BlurStyle.NONE)
-    .shadow({
-      radius: 28,
-      color: ThemeSpec.shadowColor(0.12),
-      offsetX: 0,
-      offsetY: 8
-    })
   }
 
   @Builder

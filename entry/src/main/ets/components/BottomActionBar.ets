@@ -188,28 +188,42 @@ export struct BottomActionBar {
   }
 
   build() {
-    Row() {
-      this.actionImport()
-      this.actionBuiltin()
-      this.actionExportBuiltin()
-      this.actionExport()
+    Stack({ alignContent: Alignment.Top }) {
+      Row() {
+        this.actionImport()
+        this.actionBuiltin()
+        this.actionExportBuiltin()
+        this.actionExport()
+      }
+      .width('calc(100% - 48vp)')
+      .constraintSize({ maxWidth: ThemeSpec.BAR_MAX_WIDTH_VP })
+      .height($r('app.float.action_bar_height'))
+      .padding({ left: 12, right: 12, top: 8, bottom: 8 })
+      .borderRadius($r('app.float.radius_bar'))
+      .backgroundColor(ThemeSpec.immersiveEnabled ? this.tokens().backgroundColor : $r('app.color.surface_card'))
+      .backgroundBlurStyle(ThemeSpec.immersiveEnabled ? ThemeSpec.BAR_BLUR : BlurStyle.NONE)
+      .border({
+        width: this.tokens().borderWidth,
+        color: this.tokens().borderColor
+      })
+      .shadow({
+        radius: this.tokens().shadowRadius,
+        color: ThemeSpec.shadowColor(this.tokens().shadowAlpha),
+        offsetX: 0,
+        offsetY: this.tokens().shadowOffsetY
+      })
+
+      // 顶部光线勾勒（官方"光线勾勒"等效：白 0.10 → 0 渐变，光从上方来）
+      Stack()
+        .width('calc(100% - 48vp)')
+        .constraintSize({ maxWidth: ThemeSpec.BAR_MAX_WIDTH_VP })
+        .height(3)
+        .linearGradient({
+          angle: 270,
+          colors: [[ThemeSpec.glowColor(0.10), 0.0], ['rgba(255,255,255,0)', 1.0]]
+        })
+        .hitTestBehavior(HitTestMode.None)
     }
-    .width('calc(100% - 48vp)')
-    .constraintSize({ maxWidth: ThemeSpec.BAR_MAX_WIDTH_VP })
-    .height($r('app.float.action_bar_height'))
-    .padding({ left: 12, right: 12, top: 8, bottom: 8 })
-    .borderRadius($r('app.float.radius_bar'))
-    .backgroundColor(ThemeSpec.immersiveEnabled ? this.tokens().backgroundColor : $r('app.color.surface_card'))
-    .backgroundBlurStyle(ThemeSpec.immersiveEnabled ? ThemeSpec.BAR_BLUR : BlurStyle.NONE)
-    .border({
-      width: this.tokens().borderWidth,
-      color: this.tokens().borderColor
-    })
-    .shadow({
-      radius: this.tokens().shadowRadius,
-      color: ThemeSpec.shadowColor(this.tokens().shadowAlpha),
-      offsetX: 0,
-      offsetY: this.tokens().shadowOffsetY
-    })
+    .width('100%')
   }
 }
