@@ -25,14 +25,46 @@ export struct StatCard {
     return this.assignee === '' ? '未分配' : this.assignee;
   }
 
+  // 注意（真机实测坑位）：@Builder 传参在本设备上参数固化、不随父 build 重算，
+  // 动态数值一律用无参 @Builder 直读 this，禁止 this.metric(x) 传值。
   @Builder
-  metric(value: string, label: ResourceStr) {
+  metricCalled() {
     Column() {
-      Text(value)
+      Text(ThemeSpec.formatThousands(this.called))
         .fontSize(16)
         .fontWeight(FontWeight.Bold)
         .fontColor($r('app.color.text_primary'))
-      Text(label)
+      Text($r('app.string.stat_called'))
+        .fontSize($r('app.float.font_overline'))
+        .fontColor($r('app.color.text_tertiary'))
+        .margin({ top: 2 })
+    }
+    .layoutWeight(1)
+  }
+
+  @Builder
+  metricUncalled() {
+    Column() {
+      Text(ThemeSpec.formatThousands(this.total - this.called))
+        .fontSize(16)
+        .fontWeight(FontWeight.Bold)
+        .fontColor($r('app.color.text_primary'))
+      Text($r('app.string.stat_uncalled'))
+        .fontSize($r('app.float.font_overline'))
+        .fontColor($r('app.color.text_tertiary'))
+        .margin({ top: 2 })
+    }
+    .layoutWeight(1)
+  }
+
+  @Builder
+  metricRate() {
+    Column() {
+      Text(this.percent() + '%')
+        .fontSize(16)
+        .fontWeight(FontWeight.Bold)
+        .fontColor($r('app.color.text_primary'))
+      Text($r('app.string.stat_rate'))
         .fontSize($r('app.float.font_overline'))
         .fontColor($r('app.color.text_tertiary'))
         .margin({ top: 2 })
@@ -72,9 +104,9 @@ export struct StatCard {
         .margin({ top: 12, bottom: 12 })
 
       Row() {
-        this.metric(ThemeSpec.formatThousands(this.called), $r('app.string.stat_called'))
-        this.metric(ThemeSpec.formatThousands(this.total - this.called), $r('app.string.stat_uncalled'))
-        this.metric(this.percent() + '%', $r('app.string.stat_rate'))
+        this.metricCalled()
+        this.metricUncalled()
+        this.metricRate()
       }
       .width('100%')
 

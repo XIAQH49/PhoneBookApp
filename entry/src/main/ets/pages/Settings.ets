@@ -79,19 +79,21 @@ export struct Settings {
       .textAlign(TextAlign.Start)
   }
 
+  /** 注意（真机实测坑位）：@Builder 传参参数固化，开关/单选行一律无参 @Builder 直读 this。 */
   @Builder
-  switchRow(label: ResourceStr, isOn: boolean, onChange: (v: boolean) => void) {
+  confirmRow() {
     Row() {
-      Text(label)
+      Text($r('app.string.confirm_before_call'))
         .fontSize($r('app.float.font_body'))
         .fontColor($r('app.color.text_primary'))
       Blank()
-      Toggle({ type: ToggleType.Switch, isOn: isOn })
+      Toggle({ type: ToggleType.Switch, isOn: this.confirmBefore })
         .width(52)
         .height(32)
         .selectedColor($r('app.color.primary'))
         .onChange((v: boolean) => {
-          onChange(v);
+          this.confirmBefore = v;
+          ConfigDao.set(Constants.CONFIG_CONFIRM_BEFORE_CALL, v ? '1' : '0');
         })
     }
     .width('100%')
@@ -99,17 +101,59 @@ export struct Settings {
   }
 
   @Builder
-  radioRow(value: string, label: ResourceStr, checked: boolean, onChange: () => void) {
+  stripRow() {
     Row() {
-      Radio({ value: value, group: 'export_scope' })
-        .checked(checked)
+      Text($r('app.string.strip_country_call'))
+        .fontSize($r('app.float.font_body'))
+        .fontColor($r('app.color.text_primary'))
+      Blank()
+      Toggle({ type: ToggleType.Switch, isOn: this.stripCountry })
+        .width(52)
+        .height(32)
+        .selectedColor($r('app.color.primary'))
+        .onChange((v: boolean) => {
+          this.stripCountry = v;
+          ConfigDao.set(Constants.CONFIG_CALL_STRIP_COUNTRY, v ? '1' : '0');
+        })
+    }
+    .width('100%')
+    .height(58)
+  }
+
+  @Builder
+  radioMineRow() {
+    Row() {
+      Radio({ value: Constants.EXPORT_SCOPE_MINE, group: 'export_scope' })
+        .checked(this.exportScope === Constants.EXPORT_SCOPE_MINE)
         .radioStyle({ checkedBackgroundColor: $r('app.color.primary') })
         .onChange((v: boolean) => {
           if (v) {
-            onChange();
+            this.exportScope = Constants.EXPORT_SCOPE_MINE;
+            ConfigDao.set(Constants.CONFIG_EXPORT_SCOPE, Constants.EXPORT_SCOPE_MINE);
           }
         })
-      Text(label)
+      Text($r('app.string.export_scope_mine'))
+        .fontSize($r('app.float.font_body'))
+        .fontColor($r('app.color.text_primary'))
+        .margin({ left: 10 })
+    }
+    .width('100%')
+    .height(48)
+  }
+
+  @Builder
+  radioAllRow() {
+    Row() {
+      Radio({ value: Constants.EXPORT_SCOPE_ALL, group: 'export_scope' })
+        .checked(this.exportScope === Constants.EXPORT_SCOPE_ALL)
+        .radioStyle({ checkedBackgroundColor: $r('app.color.primary') })
+        .onChange((v: boolean) => {
+          if (v) {
+            this.exportScope = Constants.EXPORT_SCOPE_ALL;
+            ConfigDao.set(Constants.CONFIG_EXPORT_SCOPE, Constants.EXPORT_SCOPE_ALL);
+          }
+        })
+      Text($r('app.string.export_scope_all'))
         .fontSize($r('app.float.font_body'))
         .fontColor($r('app.color.text_primary'))
         .margin({ left: 10 })
@@ -121,15 +165,9 @@ export struct Settings {
   @Builder
   dialCardBody() {
     Column() {
-      this.switchRow($r('app.string.confirm_before_call'), this.confirmBefore, (v: boolean): void => {
-        this.confirmBefore = v;
-        ConfigDao.set(Constants.CONFIG_CONFIRM_BEFORE_CALL, v ? '1' : '0');
-      })
+      this.confirmRow()
       Divider().color($r('app.color.divider'))
-      this.switchRow($r('app.string.strip_country_call'), this.stripCountry, (v: boolean): void => {
-        this.stripCountry = v;
-        ConfigDao.set(Constants.CONFIG_CALL_STRIP_COUNTRY, v ? '1' : '0');
-      })
+      this.stripRow()
     }
     .width('100%')
     .padding({ left: $r('app.float.space_card_inner'), right: $r('app.float.space_card_inner') })
@@ -138,15 +176,9 @@ export struct Settings {
   @Builder
   exportCardBody() {
     Column() {
-      this.radioRow(Constants.EXPORT_SCOPE_MINE, $r('app.string.export_scope_mine'), this.exportScope === Constants.EXPORT_SCOPE_MINE, (): void => {
-        this.exportScope = Constants.EXPORT_SCOPE_MINE;
-        ConfigDao.set(Constants.CONFIG_EXPORT_SCOPE, Constants.EXPORT_SCOPE_MINE);
-      })
+      this.radioMineRow()
       Divider().color($r('app.color.divider'))
-      this.radioRow(Constants.EXPORT_SCOPE_ALL, $r('app.string.export_scope_all'), this.exportScope === Constants.EXPORT_SCOPE_ALL, (): void => {
-        this.exportScope = Constants.EXPORT_SCOPE_ALL;
-        ConfigDao.set(Constants.CONFIG_EXPORT_SCOPE, Constants.EXPORT_SCOPE_ALL);
-      })
+      this.radioAllRow()
     }
     .width('100%')
     .padding({ left: $r('app.float.space_card_inner'), right: $r('app.float.space_card_inner') })

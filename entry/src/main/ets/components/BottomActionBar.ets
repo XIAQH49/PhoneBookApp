@@ -1,6 +1,6 @@
 import { MotionSpec } from '../common/MotionSpec';
 import {
-  ThemeSpec, MaterialRole, MaterialLevel, MaterialTokens
+  ThemeSpec, MaterialRole, MaterialTokens
 } from '../common/ThemeSpec';
 
 /**
@@ -10,6 +10,7 @@ import {
  * + border rgba(255,255,255,0.55) + shadowRadius 28/alpha 0.12/offsetY 8（floating-tool 语义）。
  * 4 个 icon 28vp + label 12fp 按钮（导入名单/内置名单/导出原始文件/导出结果）；
  * 按压 scale 0.94 + offsetY 1vp + 按压项 primary_soft 光斑，释放 responsiveSpringMotion(0.18,0.82,0.06)。
+ * 注意（真机实测坑位）：@Builder 传参在本设备上参数固化，按钮状态一律无参 @Builder 直读 this。
  */
 @Component
 export struct BottomActionBar {
@@ -31,12 +32,12 @@ export struct BottomActionBar {
   }
 
   @Builder
-  action(index: number, icon: string, label: ResourceStr, enabled: boolean, handler: () => void) {
+  actionImport() {
     Column() {
-      Text(icon)
+      Text('＋')
         .fontSize(28)
         .fontColor($r('app.color.primary'))
-      Text(label)
+      Text(this.importing ? this.importStage : $r('app.string.menu_import'))
         .fontSize($r('app.float.font_overline'))
         .fontColor($r('app.color.text_secondary'))
         .margin({ top: 2 })
@@ -46,20 +47,20 @@ export struct BottomActionBar {
     .layoutWeight(1)
     .height('100%')
     .borderRadius($r('app.float.radius_btn'))
-    .backgroundColor(this.pressedIdx === index ? $r('app.color.primary_soft') : Color.Transparent)
+    .backgroundColor(this.pressedIdx === 0 ? $r('app.color.primary_soft') : Color.Transparent)
     .scale({
-      x: this.pressedIdx === index ? MotionSpec.PRESS_SCALE_BTN : 1,
-      y: this.pressedIdx === index ? MotionSpec.PRESS_SCALE_BTN : 1
+      x: this.pressedIdx === 0 ? MotionSpec.PRESS_SCALE_BTN : 1,
+      y: this.pressedIdx === 0 ? MotionSpec.PRESS_SCALE_BTN : 1
     })
-    .translate({ y: this.pressedIdx === index ? MotionSpec.PRESS_OFFSET_Y : 0 })
-    .opacity(enabled ? 1 : 0.5)
+    .translate({ y: this.pressedIdx === 0 ? MotionSpec.PRESS_OFFSET_Y : 0 })
+    .opacity(this.importing ? 0.5 : 1)
     .onTouch((e: TouchEvent) => {
-      if (!enabled) {
+      if (this.importing) {
         return;
       }
       if (e.type === TouchType.Down) {
         this.getUIContext().animateTo({ curve: MotionSpec.barRelease() }, () => {
-          this.pressedIdx = index;
+          this.pressedIdx = 0;
         });
       } else if (e.type === TouchType.Up || e.type === TouchType.Cancel) {
         this.getUIContext().animateTo({ curve: MotionSpec.barRelease() }, () => {
@@ -68,26 +69,138 @@ export struct BottomActionBar {
       }
     })
     .onClick(() => {
-      if (enabled) {
-        handler();
+      if (!this.importing) {
+        this.onImport();
+      }
+    })
+  }
+
+  @Builder
+  actionBuiltin() {
+    Column() {
+      Text('📦')
+        .fontSize(28)
+        .fontColor($r('app.color.primary'))
+      Text($r('app.string.menu_builtin'))
+        .fontSize($r('app.float.font_overline'))
+        .fontColor($r('app.color.text_secondary'))
+        .margin({ top: 2 })
+        .maxLines(1)
+    }
+    .justifyContent(FlexAlign.Center)
+    .layoutWeight(1)
+    .height('100%')
+    .borderRadius($r('app.float.radius_btn'))
+    .backgroundColor(this.pressedIdx === 1 ? $r('app.color.primary_soft') : Color.Transparent)
+    .scale({
+      x: this.pressedIdx === 1 ? MotionSpec.PRESS_SCALE_BTN : 1,
+      y: this.pressedIdx === 1 ? MotionSpec.PRESS_SCALE_BTN : 1
+    })
+    .translate({ y: this.pressedIdx === 1 ? MotionSpec.PRESS_OFFSET_Y : 0 })
+    .onTouch((e: TouchEvent) => {
+      if (e.type === TouchType.Down) {
+        this.getUIContext().animateTo({ curve: MotionSpec.barRelease() }, () => {
+          this.pressedIdx = 1;
+        });
+      } else if (e.type === TouchType.Up || e.type === TouchType.Cancel) {
+        this.getUIContext().animateTo({ curve: MotionSpec.barRelease() }, () => {
+          this.pressedIdx = -1;
+        });
+      }
+    })
+    .onClick(() => {
+      this.onBuiltin();
+    })
+  }
+
+  @Builder
+  actionExportBuiltin() {
+    Column() {
+      Text('📄')
+        .fontSize(28)
+        .fontColor($r('app.color.primary'))
+      Text($r('app.string.menu_export_builtin'))
+        .fontSize($r('app.float.font_overline'))
+        .fontColor($r('app.color.text_secondary'))
+        .margin({ top: 2 })
+        .maxLines(1)
+    }
+    .justifyContent(FlexAlign.Center)
+    .layoutWeight(1)
+    .height('100%')
+    .borderRadius($r('app.float.radius_btn'))
+    .backgroundColor(this.pressedIdx === 2 ? $r('app.color.primary_soft') : Color.Transparent)
+    .scale({
+      x: this.pressedIdx === 2 ? MotionSpec.PRESS_SCALE_BTN : 1,
+      y: this.pressedIdx === 2 ? MotionSpec.PRESS_SCALE_BTN : 1
+    })
+    .translate({ y: this.pressedIdx === 2 ? MotionSpec.PRESS_OFFSET_Y : 0 })
+    .onTouch((e: TouchEvent) => {
+      if (e.type === TouchType.Down) {
+        this.getUIContext().animateTo({ curve: MotionSpec.barRelease() }, () => {
+          this.pressedIdx = 2;
+        });
+      } else if (e.type === TouchType.Up || e.type === TouchType.Cancel) {
+        this.getUIContext().animateTo({ curve: MotionSpec.barRelease() }, () => {
+          this.pressedIdx = -1;
+        });
+      }
+    })
+    .onClick(() => {
+      this.onExportBuiltin();
+    })
+  }
+
+  @Builder
+  actionExport() {
+    Column() {
+      Text('⬆')
+        .fontSize(28)
+        .fontColor($r('app.color.primary'))
+      Text(this.exporting ? '导出中…' : $r('app.string.menu_export'))
+        .fontSize($r('app.float.font_overline'))
+        .fontColor($r('app.color.text_secondary'))
+        .margin({ top: 2 })
+        .maxLines(1)
+    }
+    .justifyContent(FlexAlign.Center)
+    .layoutWeight(1)
+    .height('100%')
+    .borderRadius($r('app.float.radius_btn'))
+    .backgroundColor(this.pressedIdx === 3 ? $r('app.color.primary_soft') : Color.Transparent)
+    .scale({
+      x: this.pressedIdx === 3 ? MotionSpec.PRESS_SCALE_BTN : 1,
+      y: this.pressedIdx === 3 ? MotionSpec.PRESS_SCALE_BTN : 1
+    })
+    .translate({ y: this.pressedIdx === 3 ? MotionSpec.PRESS_OFFSET_Y : 0 })
+    .opacity(this.exporting ? 0.5 : 1)
+    .onTouch((e: TouchEvent) => {
+      if (this.exporting) {
+        return;
+      }
+      if (e.type === TouchType.Down) {
+        this.getUIContext().animateTo({ curve: MotionSpec.barRelease() }, () => {
+          this.pressedIdx = 3;
+        });
+      } else if (e.type === TouchType.Up || e.type === TouchType.Cancel) {
+        this.getUIContext().animateTo({ curve: MotionSpec.barRelease() }, () => {
+          this.pressedIdx = -1;
+        });
+      }
+    })
+    .onClick(() => {
+      if (!this.exporting) {
+        this.onExport();
       }
     })
   }
 
   build() {
     Row() {
-      this.action(0, '＋', this.importing ? this.importStage : $r('app.string.menu_import'), !this.importing, (): void => {
-        this.onImport();
-      })
-      this.action(1, '📦', $r('app.string.menu_builtin'), true, (): void => {
-        this.onBuiltin();
-      })
-      this.action(2, '📄', $r('app.string.menu_export_builtin'), true, (): void => {
-        this.onExportBuiltin();
-      })
-      this.action(3, '⬆', this.exporting ? '导出中…' : $r('app.string.menu_export'), !this.exporting, (): void => {
-        this.onExport();
-      })
+      this.actionImport()
+      this.actionBuiltin()
+      this.actionExportBuiltin()
+      this.actionExport()
     }
     .width('calc(100% - 48vp)')
     .constraintSize({ maxWidth: ThemeSpec.BAR_MAX_WIDTH_VP })

@@ -217,20 +217,63 @@ export struct ContactDetail {
       .textAlign(TextAlign.Start)
   }
 
-  /** 状态行：58vp 高 + 1vp divider；Switch 52×32，打开态显示对应语义色（校对#3：三行独立） */
+  /** 状态行：58vp 高 + 1vp divider；Switch 52×32，打开态显示对应语义色（校对#3：三行独立）。
+   *  注意（真机实测坑位）：@Builder 传参参数固化，状态行一律无参 @Builder 直读 this。 */
   @Builder
-  switchRow(col: string, active: boolean, activeColor: Resource, onChange: (v: boolean) => void) {
+  calledRow() {
     Row() {
-      Text(col)
+      Text(this.calledCol)
         .fontSize($r('app.float.font_body'))
         .fontColor($r('app.color.text_primary'))
       Blank()
-      Toggle({ type: ToggleType.Switch, isOn: active })
+      Toggle({ type: ToggleType.Switch, isOn: this.record.called })
         .width(52)
         .height(32)
-        .selectedColor(activeColor)
+        .selectedColor($r('app.color.pill_called_fg'))
         .onChange((v: boolean) => {
-          onChange(v);
+          this.markCalled(v);
+        })
+    }
+    .width('100%')
+    .height(58)
+  }
+
+  @Builder
+  connectedRow() {
+    Row() {
+      Text(this.connectedCol)
+        .fontSize($r('app.float.font_body'))
+        .fontColor($r('app.color.text_primary'))
+      Blank()
+      Toggle({ type: ToggleType.Switch, isOn: this.connected })
+        .width(52)
+        .height(32)
+        .selectedColor($r('app.color.pill_connected_fg'))
+        .onChange((v: boolean) => {
+          StatusDao.setValue(this.record.id, Constants.STATUS_KEY_CONNECTED, v).then(() => {
+            this.connected = v;
+          });
+        })
+    }
+    .width('100%')
+    .height(58)
+  }
+
+  @Builder
+  intentionRow() {
+    Row() {
+      Text(this.intentionCol)
+        .fontSize($r('app.float.font_body'))
+        .fontColor($r('app.color.text_primary'))
+      Blank()
+      Toggle({ type: ToggleType.Switch, isOn: this.intention })
+        .width(52)
+        .height(32)
+        .selectedColor($r('app.color.pill_intention_fg'))
+        .onChange((v: boolean) => {
+          StatusDao.setValue(this.record.id, Constants.STATUS_KEY_INTENTION, v).then(() => {
+            this.intention = v;
+          });
         })
     }
     .width('100%')
@@ -326,28 +369,15 @@ export struct ContactDetail {
   statusCardBody() {
     Column() {
       if (this.calledCol !== '') {
-        this.switchRow(this.calledCol, this.record.called, $r('app.color.pill_called_fg'),
-          (v: boolean): void => {
-            this.markCalled(v);
-          })
+        this.calledRow()
         Divider().color($r('app.color.divider'))
       }
       if (this.connectedCol !== '') {
-        this.switchRow(this.connectedCol, this.connected, $r('app.color.pill_connected_fg'),
-          (v: boolean): void => {
-            StatusDao.setValue(this.record.id, Constants.STATUS_KEY_CONNECTED, v).then(() => {
-              this.connected = v;
-            });
-          })
+        this.connectedRow()
         Divider().color($r('app.color.divider'))
       }
       if (this.intentionCol !== '') {
-        this.switchRow(this.intentionCol, this.intention, $r('app.color.pill_intention_fg'),
-          (v: boolean): void => {
-            StatusDao.setValue(this.record.id, Constants.STATUS_KEY_INTENTION, v).then(() => {
-              this.intention = v;
-            });
-          })
+        this.intentionRow()
       }
     }
     .width('100%')
