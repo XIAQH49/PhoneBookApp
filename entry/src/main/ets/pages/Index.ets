@@ -57,6 +57,7 @@ struct Index {
   @State searchText: string = '';
   @State searchOpen: boolean = false;
   @State filterIdx: number = 0;
+  @State filterMenuOpen: boolean = false;
   @State importing: boolean = false;
   @State importStage: string = '';
   @State exporting: boolean = false;
@@ -473,30 +474,70 @@ struct Index {
     })
   }
 
-  /** 筛选菜单（docs/16 一-4：全部/未打/已打，选中高亮） */
-  private filterMenu(): MenuElement[] {
-    const uncalled: number = this.statTotal - this.statCalled;
-    const items: MenuElement[] = [
-      {
-        value: (this.filterIdx === 0 ? '✓ ' : '   ') + '全部 ' + this.statTotal,
-        action: (): void => {
+  /** 筛选菜单（docs/16 一-4：更多=只做筛选，全部/未打/已打 选中高亮）——自绘浮层，规避 bindMenu 在自定义组件上不触发 */
+  private filterLabel(): string {
+    if (this.filterIdx === 1) {
+      return '未打';
+    }
+    if (this.filterIdx === 2) {
+      return '已打';
+    }
+    return '全部';
+  }
+
+  @Builder
+  filterMenuCard() {
+    Column() {
+      Text((this.filterIdx === 0 ? '✓ ' : '   ') + '全部 ' + this.statTotal)
+        .fontSize($r('app.float.font_body'))
+        .fontColor(this.filterIdx === 0 ? $r('app.color.primary') : $r('app.color.text_primary'))
+        .backgroundColor(this.filterIdx === 0 ? $r('app.color.primary_soft') : Color.Transparent)
+        .width('100%')
+        .height(44)
+        .borderRadius(12)
+        .padding({ left: 14, right: 14 })
+        .onClick(() => {
+          this.filterMenuOpen = false;
           this.onFilterChange(0);
-        }
-      },
-      {
-        value: (this.filterIdx === 1 ? '✓ ' : '   ') + '未打 ' + uncalled,
-        action: (): void => {
+        })
+      Text((this.filterIdx === 1 ? '✓ ' : '   ') + '未打 ' + (this.statTotal - this.statCalled))
+        .fontSize($r('app.float.font_body'))
+        .fontColor(this.filterIdx === 1 ? $r('app.color.primary') : $r('app.color.text_primary'))
+        .backgroundColor(this.filterIdx === 1 ? $r('app.color.primary_soft') : Color.Transparent)
+        .width('100%')
+        .height(44)
+        .borderRadius(12)
+        .padding({ left: 14, right: 14 })
+        .margin({ top: 4 })
+        .onClick(() => {
+          this.filterMenuOpen = false;
           this.onFilterChange(1);
-        }
-      },
-      {
-        value: (this.filterIdx === 2 ? '✓ ' : '   ') + '已打 ' + this.statCalled,
-        action: (): void => {
+        })
+      Text((this.filterIdx === 2 ? '✓ ' : '   ') + '已打 ' + this.statCalled)
+        .fontSize($r('app.float.font_body'))
+        .fontColor(this.filterIdx === 2 ? $r('app.color.primary') : $r('app.color.text_primary'))
+        .backgroundColor(this.filterIdx === 2 ? $r('app.color.primary_soft') : Color.Transparent)
+        .width('100%')
+        .height(44)
+        .borderRadius(12)
+        .padding({ left: 14, right: 14 })
+        .margin({ top: 4 })
+        .onClick(() => {
+          this.filterMenuOpen = false;
           this.onFilterChange(2);
-        }
-      }
-    ];
-    return items;
+        })
+    }
+    .width(190)
+    .padding(8)
+    .borderRadius($r('app.float.radius_item'))
+    .backgroundColor($r('app.color.surface_card'))
+    .shadow({
+      radius: 24,
+      color: ThemeSpec.shadowColor(0.12),
+      offsetX: 0,
+      offsetY: 8
+    })
+    .transition(TransitionEffect.OPACITY.combine(TransitionEffect.translate({ y: -8 })))
   }
 
   /** 展示串预计算（docs/16 6.3：item 只布局），视图层调用 */
@@ -604,11 +645,10 @@ struct Index {
         btnSize: 50,
         fontSize: 24,
         onTap: (): void => {
-          // bindMenu 直接挂在该钮上
+          this.filterMenuOpen = !this.filterMenuOpen;
         }
       })
         .margin({ left: 12 })
-        .bindMenu(this.filterMenu())
       IconButton({
         icon: ' ⚙',
         btnSize: 50,
@@ -701,6 +741,16 @@ struct Index {
           .backgroundColor($r('app.color.bg_page'))
 
           this.topBar()
+
+          // 筛选菜单浮层（更多=筛选，docs/16 一-4）
+          if (this.filterMenuOpen) {
+            Row() {
+              Blank()
+              this.filterMenuCard()
+            }
+            .width('100%')
+            .margin({ top: 80, right: 12 })
+          }
         }
         .width('100%')
         .height('100%')

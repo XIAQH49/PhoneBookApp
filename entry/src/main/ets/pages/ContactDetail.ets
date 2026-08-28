@@ -7,7 +7,6 @@ import { ImportMeta } from '../model/ImportMeta';
 import { Constants } from '../common/Constants';
 import { ConfigDao } from '../database/ConfigDao';
 import { ContextUtil } from '../common/ContextUtil';
-import { WindowInsets } from '../common/WindowInsets';
 import { CallService } from '../service/CallService';
 import { MotionSpec } from '../common/MotionSpec';
 import { ThemeSpec, MaterialRole } from '../common/ThemeSpec';
