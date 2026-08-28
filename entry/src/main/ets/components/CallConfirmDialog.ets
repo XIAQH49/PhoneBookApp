@@ -41,7 +41,7 @@ export struct CallConfirmDialog {
       .margin({ top: 12 })
       Row() {
         Button($r('app.string.cancel'))
-          .backgroundColor($r('app.color.bg'))
+          .backgroundColor($r('app.color.bg_page'))
           .fontColor($r('app.color.text_secondary'))
           .borderRadius($r('app.float.radius_btn'))
           .onClick(() => {

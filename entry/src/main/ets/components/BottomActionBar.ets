@@ -1,10 +1,15 @@
 import { MotionSpec } from '../common/MotionSpec';
-import { ThemeSpec } from '../common/ThemeSpec';
+import {
+  ThemeSpec, MaterialRole, MaterialLevel, MaterialTokens
+} from '../common/ThemeSpec';
 
 /**
- * 底部悬浮胶囊操作栏（docs/14 第 3/5.5 节）：高 64vp、左右缩进 16vp、radius_pill、
- * Thick 毛玻璃 + raised 阴影；4 个图标+文字按钮（导入名单/内置名单/导出原始文件/导出结果）。
- * 单页架构：按钮只触发动作不跳页；按压弹性 scale 0.94 + brightness 0.9。
+ * 底部悬浮毛玻璃工具台（docs/15 二/3.1/5.5）：
+ * 高 76vp、paddingH 12、paddingV 8、圆角 28vp；left/right 20vp、底部 safeArea+16vp；
+ * 宽 min(720vp, 容器宽−48vp)，不占满全宽；rgba(surface,0.82)+COMPONENT_ULTRA_THICK 毛玻璃
+ * + border rgba(255,255,255,0.55) + shadowRadius 28/alpha 0.12/offsetY 8（floating-tool 语义）。
+ * 4 个 icon 28vp + label 12fp 按钮（导入名单/内置名单/导出原始文件/导出结果）；
+ * 按压 scale 0.94 + offsetY 1vp + 按压项 primary_soft 光斑，释放 responsiveSpringMotion(0.18,0.82,0.06)。
  */
 @Component
 export struct BottomActionBar {
@@ -21,14 +26,18 @@ export struct BottomActionBar {
   };
   @State pressedIdx: number = -1;
 
+  private tokens(): MaterialTokens {
+    return ThemeSpec.resolveMaterial(MaterialRole.FLOATING_TOOL, ThemeSpec.materialLevel());
+  }
+
   @Builder
   action(index: number, icon: string, label: ResourceStr, enabled: boolean, handler: () => void) {
     Column() {
       Text(icon)
-        .fontSize(18)
+        .fontSize(28)
         .fontColor($r('app.color.primary'))
       Text(label)
-        .fontSize(11)
+        .fontSize($r('app.float.font_overline'))
         .fontColor($r('app.color.text_secondary'))
         .margin({ top: 2 })
         .maxLines(1)
@@ -36,22 +45,24 @@ export struct BottomActionBar {
     .justifyContent(FlexAlign.Center)
     .layoutWeight(1)
     .height('100%')
+    .borderRadius($r('app.float.radius_btn'))
+    .backgroundColor(this.pressedIdx === index ? $r('app.color.primary_soft') : Color.Transparent)
     .scale({
       x: this.pressedIdx === index ? MotionSpec.PRESS_SCALE_BTN : 1,
       y: this.pressedIdx === index ? MotionSpec.PRESS_SCALE_BTN : 1
     })
-    .brightness(this.pressedIdx === index ? MotionSpec.PRESS_BRIGHTNESS_CARD : 1)
+    .translate({ y: this.pressedIdx === index ? MotionSpec.PRESS_OFFSET_Y : 0 })
     .opacity(enabled ? 1 : 0.5)
     .onTouch((e: TouchEvent) => {
       if (!enabled) {
         return;
       }
       if (e.type === TouchType.Down) {
-        this.getUIContext().animateTo({ curve: MotionSpec.press() }, () => {
+        this.getUIContext().animateTo({ curve: MotionSpec.barRelease() }, () => {
           this.pressedIdx = index;
         });
       } else if (e.type === TouchType.Up || e.type === TouchType.Cancel) {
-        this.getUIContext().animateTo({ curve: MotionSpec.press() }, () => {
+        this.getUIContext().animateTo({ curve: MotionSpec.barRelease() }, () => {
           this.pressedIdx = -1;
         });
       }
@@ -78,17 +89,22 @@ export struct BottomActionBar {
         this.onExport();
       })
     }
-    .width('calc(100% - 32vp)')
+    .width('calc(100% - 48vp)')
+    .constraintSize({ maxWidth: ThemeSpec.BAR_MAX_WIDTH_VP })
     .height($r('app.float.action_bar_height'))
-    .padding({ left: 4, right: 4 })
-    .borderRadius($r('app.float.radius_pill'))
-    .backgroundColor($r('app.color.bar_bg'))
+    .padding({ left: 12, right: 12, top: 8, bottom: 8 })
+    .borderRadius($r('app.float.radius_bar'))
+    .backgroundColor(this.tokens().backgroundColor)
     .backgroundBlurStyle(ThemeSpec.BAR_BLUR)
+    .border({
+      width: this.tokens().borderWidth,
+      color: this.tokens().borderColor
+    })
     .shadow({
-      radius: ThemeSpec.SHADOW_RAISED_RADIUS,
-      color: ThemeSpec.SHADOW_RAISED_COLOR,
+      radius: this.tokens().shadowRadius,
+      color: ThemeSpec.shadowColor(this.tokens().shadowAlpha),
       offsetX: 0,
-      offsetY: ThemeSpec.SHADOW_RAISED_OFFSET_Y
+      offsetY: this.tokens().shadowOffsetY
     })
   }
 }

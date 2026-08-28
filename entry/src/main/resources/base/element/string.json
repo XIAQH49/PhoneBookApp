@@ -49,6 +49,18 @@
       "value": "已打"
     },
     {
+      "name": "chip_all_count",
+      "value": "全部 %d"
+    },
+    {
+      "name": "chip_uncalled_count",
+      "value": "未打 %d"
+    },
+    {
+      "name": "chip_called_count",
+      "value": "已打 %d"
+    },
+    {
       "name": "search_hint",
       "value": "搜索姓名/工号/手机"
     },
@@ -109,6 +121,10 @@
       "value": "选择责任人"
     },
     {
+      "name": "assignee_row_stats",
+      "value": "%d 条任务 · %d 条已打"
+    },
+    {
       "name": "export_scope_mine",
       "value": "当前责任人+未分配"
     },
@@ -137,6 +153,10 @@
       "value": "拨号"
     },
     {
+      "name": "section_export",
+      "value": "导出"
+    },
+    {
       "name": "section_data",
       "value": "数据信息"
     },
@@ -162,11 +182,11 @@
     },
     {
       "name": "detail_section_status",
-      "value": "状态"
+      "value": "外呼状态"
     },
     {
       "name": "detail_section_info",
-      "value": "信息"
+      "value": "客户信息"
     },
     {
       "name": "stat_called",
@@ -179,6 +199,10 @@
     {
       "name": "stat_rate",
       "value": "完成率"
+    },
+    {
+      "name": "stat_assignee_hint",
+      "value": "当前责任人：%s · 共 %d 条"
     },
     {
       "name": "stat_all_total_hint",

@@ -6,11 +6,15 @@
     },
     {
       "name": "radius_card",
-      "value": "24vp"
+      "value": "28vp"
+    },
+    {
+      "name": "radius_feature",
+      "value": "32vp"
     },
     {
       "name": "radius_item",
-      "value": "20vp"
+      "value": "24vp"
     },
     {
       "name": "radius_pill",
@@ -18,15 +22,23 @@
     },
     {
       "name": "radius_btn",
-      "value": "16vp"
+      "value": "18vp"
+    },
+    {
+      "name": "radius_search",
+      "value": "22vp"
+    },
+    {
+      "name": "radius_bar",
+      "value": "28vp"
     },
     {
       "name": "space_page",
-      "value": "16vp"
+      "value": "24vp"
     },
     {
       "name": "space_card_inner",
-      "value": "20vp"
+      "value": "24vp"
     },
     {
       "name": "space_between",
@@ -34,19 +46,31 @@
     },
     {
       "name": "space_group",
+      "value": "24vp"
+    },
+    {
+      "name": "space_stat",
       "value": "20vp"
     },
     {
+      "name": "font_display_xl",
+      "value": "64fp"
+    },
+    {
       "name": "font_display",
-      "value": "40fp"
+      "value": "48fp"
     },
     {
       "name": "font_title",
-      "value": "28fp"
+      "value": "32fp"
     },
     {
       "name": "font_headline",
-      "value": "22fp"
+      "value": "24fp"
+    },
+    {
+      "name": "font_body_lg",
+      "value": "18fp"
     },
     {
       "name": "font_body",
@@ -57,32 +81,56 @@
       "value": "13fp"
     },
     {
-      "name": "icon_btn_size",
-      "value": "48vp"
+      "name": "font_overline",
+      "value": "12fp"
     },
     {
-      "name": "dial_btn_size",
-      "value": "40vp"
+      "name": "icon_btn_size",
+      "value": "50vp"
     },
     {
       "name": "pill_height",
-      "value": "28vp"
+      "value": "34vp"
     },
     {
       "name": "chip_height",
-      "value": "36vp"
+      "value": "40vp"
     },
     {
       "name": "ring_size",
-      "value": "96vp"
+      "value": "156vp"
     },
     {
       "name": "ring_width",
-      "value": "8vp"
+      "value": "12vp"
     },
     {
       "name": "action_bar_height",
-      "value": "64vp"
+      "value": "76vp"
+    },
+    {
+      "name": "search_height",
+      "value": "52vp"
+    },
+    {
+      "name": "header_height",
+      "value": "72vp"
+    },
+    {
+      "name": "stat_card_height",
+      "value": "280vp"
+    },
+    {
+      "name": "person_card_height",
+      "value": "190vp"
+    },
+    {
+      "name": "content_max_width",
+      "value": "1040vp"
+    },
+    {
+      "name": "grid_bottom_padding",
+      "value": "132vp"
     }
   ]
 }

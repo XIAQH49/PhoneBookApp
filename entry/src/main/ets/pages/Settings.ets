@@ -5,13 +5,13 @@ import { ImportMeta } from '../model/ImportMeta';
 import { Constants } from '../common/Constants';
 import { DataResetService } from '../database/DataResetService';
 import { MotionSpec } from '../common/MotionSpec';
-import { ThemeSpec } from '../common/ThemeSpec';
+import { ThemeSpec, MaterialRole } from '../common/ThemeSpec';
 import { IconButton } from '../components/IconButton';
+import { SemanticMaterialSurface } from '../components/SemanticMaterialSurface';
 
 /**
- * 设置页（FR-5 / R-4；v0.7 UI 重构，docs/14 4.3）：分组卡片列表——
- * 拨号分组卡（开关）/ 导出范围分组卡（单选）/ 数据信息卡 / 危险操作卡。
- * 各设置项持久化行为与旧版一致。
+ * 设置页（FR-5 / R-4；docs/15 3.3 + 校对#1：仅重构现有设置项，不新增开关）：
+ * 拨号 分组卡（拨号前确认/拨号前去除+86）、导出 分组卡（单选）、信息 卡片、危险 卡片。
  *
  * M2-2：router → Navigation 迁移。本页为 NavDestination；
  * 返回统一 pop(带结果) 并拦截系统返回，保证宿主 Index 的 onPop 回调触发。
@@ -49,7 +49,7 @@ export struct Settings {
     this.playCards();
   }
 
-  /** 分组卡错峰淡入（docs/14 5.2：index*40ms delay） */
+  /** 分组卡错峰淡入（docs/15 5.2：index*35ms delay） */
   playCards(): void {
     this.appearCard = 0;
     setTimeout(() => {
@@ -70,6 +70,16 @@ export struct Settings {
   }
 
   @Builder
+  sectionLabel(label: ResourceStr) {
+    Text(label)
+      .fontSize($r('app.float.font_overline'))
+      .fontColor($r('app.color.text_tertiary'))
+      .width('100%')
+      .margin({ left: 4, bottom: 8 })
+      .textAlign(TextAlign.Start)
+  }
+
+  @Builder
   switchRow(label: ResourceStr, isOn: boolean, onChange: (v: boolean) => void) {
     Row() {
       Text(label)
@@ -77,12 +87,15 @@ export struct Settings {
         .fontColor($r('app.color.text_primary'))
       Blank()
       Toggle({ type: ToggleType.Switch, isOn: isOn })
+        .width(52)
+        .height(32)
+        .selectedColor($r('app.color.primary'))
         .onChange((v: boolean) => {
           onChange(v);
         })
     }
     .width('100%')
-    .padding({ top: 12, bottom: 12 })
+    .height(58)
   }
 
   @Builder
@@ -90,6 +103,7 @@ export struct Settings {
     Row() {
       Radio({ value: value, group: 'export_scope' })
         .checked(checked)
+        .radioStyle({ checkedBackgroundColor: $r('app.color.primary') })
         .onChange((v: boolean) => {
           if (v) {
             onChange();
@@ -101,13 +115,47 @@ export struct Settings {
         .margin({ left: 10 })
     }
     .width('100%')
-    .padding({ top: 10, bottom: 10 })
+    .height(48)
+  }
+
+  @Builder
+  dialCardBody() {
+    Column() {
+      this.switchRow($r('app.string.confirm_before_call'), this.confirmBefore, (v: boolean): void => {
+        this.confirmBefore = v;
+        ConfigDao.set(Constants.CONFIG_CONFIRM_BEFORE_CALL, v ? '1' : '0');
+      })
+      Divider().color($r('app.color.divider'))
+      this.switchRow($r('app.string.strip_country_call'), this.stripCountry, (v: boolean): void => {
+        this.stripCountry = v;
+        ConfigDao.set(Constants.CONFIG_CALL_STRIP_COUNTRY, v ? '1' : '0');
+      })
+    }
+    .width('100%')
+    .padding({ left: $r('app.float.space_card_inner'), right: $r('app.float.space_card_inner') })
+  }
+
+  @Builder
+  exportCardBody() {
+    Column() {
+      this.radioRow(Constants.EXPORT_SCOPE_MINE, $r('app.string.export_scope_mine'), this.exportScope === Constants.EXPORT_SCOPE_MINE, (): void => {
+        this.exportScope = Constants.EXPORT_SCOPE_MINE;
+        ConfigDao.set(Constants.CONFIG_EXPORT_SCOPE, Constants.EXPORT_SCOPE_MINE);
+      })
+      Divider().color($r('app.color.divider'))
+      this.radioRow(Constants.EXPORT_SCOPE_ALL, $r('app.string.export_scope_all'), this.exportScope === Constants.EXPORT_SCOPE_ALL, (): void => {
+        this.exportScope = Constants.EXPORT_SCOPE_ALL;
+        ConfigDao.set(Constants.CONFIG_EXPORT_SCOPE, Constants.EXPORT_SCOPE_ALL);
+      })
+    }
+    .width('100%')
+    .padding({ left: $r('app.float.space_card_inner'), right: $r('app.float.space_card_inner') })
   }
 
   build() {
     NavDestination() {
       Column() {
-        // 顶部栏：40vp 圆形返回 + 居中标题 + 右侧占位（保持对称）
+        // 顶部栏：50vp 圆形返回 + 居中标题 + 右侧占位（保持对称）
         Row() {
           IconButton({
             icon: '←',
@@ -117,7 +165,7 @@ export struct Settings {
           })
           Blank()
           Text($r('app.string.settings_title'))
-            .fontSize(18)
+            .fontSize($r('app.float.font_headline'))
             .fontWeight(FontWeight.Bold)
             .fontColor($r('app.color.text_primary'))
           Blank()
@@ -126,88 +174,75 @@ export struct Settings {
             .height($r('app.float.icon_btn_size'))
         }
         .width('100%')
-        .padding({ left: $r('app.float.space_page'), right: $r('app.float.space_page'), top: 8, bottom: 8 })
+        .constraintSize({ maxWidth: ThemeSpec.CONTENT_MAX_WIDTH_VP })
+        .height($r('app.float.header_height'))
+        .padding({ left: $r('app.float.space_page'), right: $r('app.float.space_page') })
 
         Scroll() {
           Column() {
-            // ---- 拨号分组卡 ----
+            // ---- 拨号 分组卡 ----
             Column() {
-              this.switchRow($r('app.string.confirm_before_call'), this.confirmBefore, (v: boolean): void => {
-                this.confirmBefore = v;
-                ConfigDao.set(Constants.CONFIG_CONFIRM_BEFORE_CALL, v ? '1' : '0');
-              })
-              Divider().color($r('app.color.divider'))
-              this.switchRow($r('app.string.strip_country_call'), this.stripCountry, (v: boolean): void => {
-                this.stripCountry = v;
-                ConfigDao.set(Constants.CONFIG_CALL_STRIP_COUNTRY, v ? '1' : '0');
-              })
+              this.sectionLabel($r('app.string.section_call'))
+              SemanticMaterialSurface({
+                role: MaterialRole.NORMAL_SURFACE,
+                emphasis: false,
+                radius: $r('app.float.radius_card')
+              }) {
+                this.dialCardBody()
+              }
             }
-            .padding({ left: $r('app.float.space_card_inner'), right: $r('app.float.space_card_inner'), top: 4, bottom: 4 })
-            .borderRadius($r('app.float.radius_card'))
-            .backgroundColor($r('app.color.card'))
-            .shadow({
-              radius: ThemeSpec.SHADOW_CARD_RADIUS,
-              color: ThemeSpec.SHADOW_CARD_COLOR,
-              offsetX: 0,
-              offsetY: ThemeSpec.SHADOW_CARD_OFFSET_Y
-            })
+            .width('100%')
             .opacity(this.appearCard >= 1 ? 1 : 0)
             .translate({ y: this.appearCard >= 1 ? 0 : MotionSpec.ENTRANCE_TRANSLATE })
 
-            // ---- 导出范围分组卡 ----
+            // ---- 导出 分组卡 ----
             Column() {
-              Text($r('app.string.export_scope'))
-                .fontSize($r('app.float.font_caption'))
-                .fontColor($r('app.color.text_hint'))
-                .width('100%')
-                .margin({ bottom: 4 })
-                .textAlign(TextAlign.Start)
-              this.radioRow(Constants.EXPORT_SCOPE_MINE, $r('app.string.export_scope_mine'), this.exportScope === Constants.EXPORT_SCOPE_MINE, (): void => {
-                this.exportScope = Constants.EXPORT_SCOPE_MINE;
-                ConfigDao.set(Constants.CONFIG_EXPORT_SCOPE, Constants.EXPORT_SCOPE_MINE);
-              })
-              this.radioRow(Constants.EXPORT_SCOPE_ALL, $r('app.string.export_scope_all'), this.exportScope === Constants.EXPORT_SCOPE_ALL, (): void => {
-                this.exportScope = Constants.EXPORT_SCOPE_ALL;
-                ConfigDao.set(Constants.CONFIG_EXPORT_SCOPE, Constants.EXPORT_SCOPE_ALL);
-              })
+              this.sectionLabel($r('app.string.section_export'))
+              SemanticMaterialSurface({
+                role: MaterialRole.NORMAL_SURFACE,
+                emphasis: false,
+                radius: $r('app.float.radius_card')
+              }) {
+                this.exportCardBody()
+              }
             }
-            .padding({ left: $r('app.float.space_card_inner'), right: $r('app.float.space_card_inner'), top: 12, bottom: 12 })
-            .borderRadius($r('app.float.radius_card'))
-            .backgroundColor($r('app.color.card'))
-            .shadow({
-              radius: ThemeSpec.SHADOW_CARD_RADIUS,
-              color: ThemeSpec.SHADOW_CARD_COLOR,
-              offsetX: 0,
-              offsetY: ThemeSpec.SHADOW_CARD_OFFSET_Y
-            })
+            .width('100%')
             .margin({ top: $r('app.float.space_group') })
             .opacity(this.appearCard >= 2 ? 1 : 0)
             .translate({ y: this.appearCard >= 2 ? 0 : MotionSpec.ENTRANCE_TRANSLATE })
 
-            // ---- 数据信息卡 ----
-            Row() {
-              Text($r('app.string.section_data'))
-                .fontSize($r('app.float.font_caption'))
-                .fontColor($r('app.color.text_hint'))
-              Blank()
-              Text(this.dataInfo)
-                .fontSize($r('app.float.font_caption'))
-                .fontColor($r('app.color.text_secondary'))
-                .maxLines(1)
-                .textOverflow({ overflow: TextOverflow.Ellipsis })
-                .layoutWeight(1)
-                .margin({ left: 12 })
-                .textAlign(TextAlign.End)
+            // ---- 信息 卡片 ----
+            Column() {
+              this.sectionLabel($r('app.string.section_data'))
+              SemanticMaterialSurface({
+                role: MaterialRole.NORMAL_SURFACE,
+                emphasis: false,
+                radius: $r('app.float.radius_card')
+              }) {
+                Row() {
+                  Text($r('app.string.section_data'))
+                    .fontSize($r('app.float.font_caption'))
+                    .fontColor($r('app.color.text_tertiary'))
+                  Blank()
+                  Text(this.dataInfo)
+                    .fontSize($r('app.float.font_caption'))
+                    .fontColor($r('app.color.text_secondary'))
+                    .maxLines(1)
+                    .textOverflow({ overflow: TextOverflow.Ellipsis })
+                    .layoutWeight(1)
+                    .margin({ left: 12 })
+                    .textAlign(TextAlign.End)
+                }
+                .width('100%')
+                .padding($r('app.float.space_card_inner'))
+              }
             }
             .width('100%')
-            .padding($r('app.float.space_card_inner'))
-            .borderRadius($r('app.float.radius_card'))
-            .backgroundColor($r('app.color.card'))
             .margin({ top: $r('app.float.space_group') })
             .opacity(this.appearCard >= 3 ? 1 : 0)
             .translate({ y: this.appearCard >= 3 ? 0 : MotionSpec.ENTRANCE_TRANSLATE })
 
-            // ---- 危险操作卡 ----
+            // ---- 危险 卡片（danger 描边，只重构不加新项）----
             Button() {
               Row() {
                 Text('⚠').fontSize(16)
@@ -218,7 +253,7 @@ export struct Settings {
               }
             }
             .width('100%')
-            .height(48)
+            .height(52)
             .fontColor($r('app.color.danger'))
             .backgroundColor($r('app.color.danger_soft'))
             .borderRadius($r('app.float.radius_card'))
@@ -229,6 +264,7 @@ export struct Settings {
             })
           }
           .width('100%')
+          .constraintSize({ maxWidth: ThemeSpec.CONTENT_MAX_WIDTH_VP })
           .padding({ left: $r('app.float.space_page'), right: $r('app.float.space_page'), bottom: $r('app.float.space_group') })
         }
         .layoutWeight(1)
@@ -237,7 +273,7 @@ export struct Settings {
       }
       .width('100%')
       .height('100%')
-      .backgroundColor($r('app.color.bg'))
+      .backgroundColor($r('app.color.bg_page'))
     }
     .hideTitleBar(true)
     .onReady((ctx: NavDestinationContext) => {

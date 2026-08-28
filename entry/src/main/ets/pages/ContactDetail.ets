@@ -9,19 +9,20 @@ import { ConfigDao } from '../database/ConfigDao';
 import { ContextUtil } from '../common/ContextUtil';
 import { CallService } from '../service/CallService';
 import { MotionSpec } from '../common/MotionSpec';
-import { ThemeSpec } from '../common/ThemeSpec';
+import { ThemeSpec, MaterialRole } from '../common/ThemeSpec';
 import { StatusPill } from '../components/StatusPill';
 import { IconButton } from '../components/IconButton';
+import { SemanticMaterialSurface } from '../components/SemanticMaterialSurface';
 import { NumberSheet } from '../components/NumberSheet';
 import { CallConfirmDialog } from '../components/CallConfirmDialog';
 
 /**
- * 条目详情页（FR-4 详情 / FR-5；v0.7 UI 重构，docs/14 4.2）：
- * 头部卡（姓名+状态胶囊+号码+拨打主按钮）+ 状态卡（已打/打通/意向三行开关）+ 信息卡（其余列键值行）。
+ * 条目详情页（FR-4 详情 / FR-5；docs/15 3.2）：
+ * 头部卡（姓名+状态胶囊+号码+拨打主按钮）+ 外呼状态卡（已打/打通/意向三行独立 Switch，语义色）+
+ * 客户信息卡（其余列键值行）。
+ * 5.6 转场：入场 opacity 0→1 / translateX 24→0 / scale 0.985→1（springMotion(0.42,0.86)）+ 卡片错峰 35ms。
  *
- * M2-2：router → Navigation 迁移。本页为 NavDestination：条目 id 经
- * pushPathByName 参数传入（onReady 读取）；返回统一 pop(带结果) 并拦截系统返回，
- * 保证宿主 Index 的 onPop 回调触发。
+ * M2-2：router → Navigation 迁移。本页为 NavDestination；返回统一 pop(带结果) 并拦截系统返回。
  */
 @Component
 export struct ContactDetail {
@@ -38,7 +39,7 @@ export struct ContactDetail {
   @State showNumberSheet: boolean = false;
   @State sheetNumbers: string[] = [];
   @State sheetName: string = '';
-  @State appearCard: number = 0;
+  @State appear: number = 0;
   private confirmName: string = '';
   private confirmNumber: string = '';
   private confirmController: CustomDialogController | undefined = undefined;
@@ -78,27 +79,25 @@ export struct ContactDetail {
     this.connected = await StatusDao.getValue(rec.id, Constants.STATUS_KEY_CONNECTED);
     this.intention = await StatusDao.getValue(rec.id, Constants.STATUS_KEY_INTENTION);
     this.loaded = true;
-    this.playCards();
+    this.playEntrance();
   }
 
-  /** 分区卡错峰淡入（docs/14 5.2：index*40ms delay） */
-  playCards(): void {
-    this.appearCard = 0;
+  /** 5.6 页面转场 + 分区卡错峰（35ms） */
+  playEntrance(): void {
+    this.appear = 0;
+    this.getUIContext().animateTo({ curve: MotionSpec.pageTransition() }, () => {
+      this.appear = 1;
+    });
     setTimeout(() => {
       this.getUIContext().animateTo({ curve: MotionSpec.entrance() }, () => {
-        this.appearCard = 1;
+        this.appear = 2;
       });
     }, MotionSpec.STAGGER);
     setTimeout(() => {
       this.getUIContext().animateTo({ curve: MotionSpec.entrance() }, () => {
-        this.appearCard = 2;
+        this.appear = 3;
       });
     }, MotionSpec.STAGGER * 2);
-    setTimeout(() => {
-      this.getUIContext().animateTo({ curve: MotionSpec.entrance() }, () => {
-        this.appearCard = 3;
-      });
-    }, MotionSpec.STAGGER * 3);
   }
 
   async markCalled(v: boolean): Promise<void> {
@@ -122,6 +121,10 @@ export struct ContactDetail {
   /** 电话展示文本（头部卡） */
   phoneText(): string {
     return this.record.phoneNumbers.length > 1 ? '手机 ×' + this.record.phoneNumbers.length : this.record.phoneRaw;
+  }
+
+  private titleText(): string {
+    return this.record.name !== '' ? this.record.name : '详情';
   }
 
   // ---- 拨号（与主列表一致：确认框可关闭；唤起即标记，R-7 拨出即算）----
@@ -205,27 +208,33 @@ export struct ContactDetail {
   }
 
   @Builder
-  statusRow(col: string, active: boolean, labelOn: ResourceStr, labelOff: ResourceStr, toggle: (v: boolean) => void) {
+  sectionLabel(label: ResourceStr) {
+    Text(label)
+      .fontSize($r('app.float.font_overline'))
+      .fontColor($r('app.color.text_tertiary'))
+      .width('100%')
+      .margin({ left: 4, bottom: 8, top: 4 })
+      .textAlign(TextAlign.Start)
+  }
+
+  /** 状态行：58vp 高 + 1vp divider；Switch 52×32，打开态显示对应语义色（校对#3：三行独立） */
+  @Builder
+  switchRow(col: string, active: boolean, activeColor: Resource, onChange: (v: boolean) => void) {
     Row() {
-      Text('●')
-        .fontSize(14)
-        .fontColor($r('app.color.primary'))
       Text(col)
         .fontSize($r('app.float.font_body'))
         .fontColor($r('app.color.text_primary'))
-        .margin({ left: 10 })
       Blank()
-      StatusPill({
-        active: active,
-        labelOn: labelOn,
-        labelOff: labelOff,
-        onToggle: (): void => {
-          toggle(!active);
-        }
-      })
+      Toggle({ type: ToggleType.Switch, isOn: active })
+        .width(52)
+        .height(32)
+        .selectedColor(activeColor)
+        .onChange((v: boolean) => {
+          onChange(v);
+        })
     }
     .width('100%')
-    .padding({ top: 10, bottom: 10 })
+    .height(58)
   }
 
   @Builder
@@ -234,15 +243,15 @@ export struct ContactDetail {
       Row() {
         Text(col)
           .fontSize($r('app.float.font_caption'))
-          .fontColor($r('app.color.text_hint'))
-          .width(96)
+          .fontColor($r('app.color.text_tertiary'))
+          .width(110)
         Text(value)
           .fontSize($r('app.float.font_body'))
           .fontColor($r('app.color.text_primary'))
           .layoutWeight(1)
       }
       .width('100%')
-      .padding({ top: 10, bottom: 10 })
+      .padding({ top: 12, bottom: 12 })
       if (showDivider) {
         Divider().color($r('app.color.divider'))
       }
@@ -250,10 +259,116 @@ export struct ContactDetail {
     .width('100%')
   }
 
+  @Builder
+  headerCardBody() {
+    Column() {
+      Row() {
+        Text(this.record.name !== '' ? this.record.name : '（无姓名）')
+          .fontSize($r('app.float.font_headline'))
+          .fontWeight(FontWeight.Bold)
+          .fontColor($r('app.color.text_primary'))
+          .maxLines(1)
+          .textOverflow({ overflow: TextOverflow.Ellipsis })
+          .layoutWeight(1)
+        StatusPill({
+          active: this.record.called,
+          onToggle: (): void => {
+            this.markCalled(!this.record.called);
+          }
+        })
+          .margin({ left: 8 })
+      }
+      .width('100%')
+
+      Text(this.phoneText())
+        .fontSize($r('app.float.font_body_lg'))
+        .fontWeight(FontWeight.Medium)
+        .fontColor($r('app.color.text_secondary'))
+        .width('100%')
+        .margin({ top: 10 })
+
+      // 主按钮（primary-action 语义：primary 底 #FFF 字 + shadow 12/0.16/4）
+      Button() {
+        Row() {
+          Text('☎').fontSize(20)
+          Text($r('app.string.call'))
+            .fontSize(16)
+            .fontWeight(FontWeight.Medium)
+            .margin({ left: 6 })
+        }
+      }
+      .width('100%')
+      .height(48)
+      .backgroundColor($r('app.color.primary'))
+      .fontColor(Color.White)
+      .borderRadius($r('app.float.radius_btn'))
+      .shadow({
+        radius: 12,
+        color: ThemeSpec.shadowColor(0.16),
+        offsetX: 0,
+        offsetY: 4
+      })
+      .margin({ top: 16 })
+      .stateStyles({
+        pressed: {
+          .brightness(0.9)
+        }
+      })
+      .onClick(() => {
+        this.onCall();
+      })
+    }
+    .width('100%')
+    .padding($r('app.float.space_card_inner'))
+  }
+
+  @Builder
+  statusCardBody() {
+    Column() {
+      if (this.calledCol !== '') {
+        this.switchRow(this.calledCol, this.record.called, $r('app.color.pill_called_fg'),
+          (v: boolean): void => {
+            this.markCalled(v);
+          })
+        Divider().color($r('app.color.divider'))
+      }
+      if (this.connectedCol !== '') {
+        this.switchRow(this.connectedCol, this.connected, $r('app.color.pill_connected_fg'),
+          (v: boolean): void => {
+            StatusDao.setValue(this.record.id, Constants.STATUS_KEY_CONNECTED, v).then(() => {
+              this.connected = v;
+            });
+          })
+        Divider().color($r('app.color.divider'))
+      }
+      if (this.intentionCol !== '') {
+        this.switchRow(this.intentionCol, this.intention, $r('app.color.pill_intention_fg'),
+          (v: boolean): void => {
+            StatusDao.setValue(this.record.id, Constants.STATUS_KEY_INTENTION, v).then(() => {
+              this.intention = v;
+            });
+          })
+      }
+    }
+    .width('100%')
+    .padding({ left: $r('app.float.space_card_inner'), right: $r('app.float.space_card_inner') })
+  }
+
+  @Builder
+  infoCardBody() {
+    Column() {
+      ForEach(this.infoColumns(), (col: string, i: number) => {
+        this.infoRow(col, this.record.rawData[col] ?? '', i < this.infoColumns().length - 1)
+      }, (col: string, i: number) => i + '_' + col)
+    }
+    .width('100%')
+    .padding({ left: $r('app.float.space_card_inner'), right: $r('app.float.space_card_inner') })
+  }
+
   build() {
     NavDestination() {
       Column() {
-        // 顶部栏：40vp 圆形返回 + 居中标题 + 右侧占位（保持对称）
+        // 顶部栏：50vp 圆形返回 + 居中标题（姓名）+ 右侧占位（保持对称）
         Row() {
           IconButton({
             icon: '←',
@@ -262,17 +377,21 @@ export struct ContactDetail {
             }
           })
           Blank()
-          Text($r('app.string.detail_title'))
-            .fontSize(18)
+          Text(this.titleText())
+            .fontSize($r('app.float.font_headline'))
             .fontWeight(FontWeight.Bold)
             .fontColor($r('app.color.text_primary'))
+            .maxLines(1)
+            .textOverflow({ overflow: TextOverflow.Ellipsis })
           Blank()
           Row()
             .width($r('app.float.icon_btn_size'))
             .height($r('app.float.icon_btn_size'))
         }
         .width('100%')
-        .padding({ left: $r('app.float.space_page'), right: $r('app.float.space_page'), top: 8, bottom: 8 })
+        .constraintSize({ maxWidth: ThemeSpec.CONTENT_MAX_WIDTH_VP })
+        .height($r('app.float.header_height'))
+        .padding({ left: $r('app.float.space_page'), right: $r('app.float.space_page') })
 
         if (!this.loaded) {
           Text('未找到该条数据')
@@ -283,137 +402,65 @@ export struct ContactDetail {
           Scroll() {
             Column() {
               // ---- 头部卡 ----
-              Column() {
-                Row() {
-                  Text(this.record.name !== '' ? this.record.name : '（无姓名）')
-                    .fontSize(28)
-                    .fontWeight(FontWeight.Bold)
-                    .fontColor($r('app.color.text_primary'))
-                    .maxLines(1)
-                    .textOverflow({ overflow: TextOverflow.Ellipsis })
-                    .layoutWeight(1)
-                  StatusPill({
-                    active: this.record.called,
-                    onToggle: (): void => {
-                      this.markCalled(!this.record.called);
-                    }
-                  })
-                    .margin({ left: 8 })
-                }
-                .width('100%')
-
-                Text(this.phoneText())
-                  .fontSize($r('app.float.font_body'))
-                  .fontColor($r('app.color.text_secondary'))
-                  .width('100%')
-                  .margin({ top: 8 })
-
-                Button() {
-                  Row() {
-                    Text('📞').fontSize(18)
-                    Text($r('app.string.call'))
-                      .fontSize(16)
-                      .fontWeight(FontWeight.Medium)
-                      .margin({ left: 6 })
-                  }
-                }
-                .width('100%')
-                .height(48)
-                .backgroundColor($r('app.color.primary'))
-                .fontColor(Color.White)
-                .borderRadius($r('app.float.radius_btn'))
-                .margin({ top: 16 })
-                .onClick(() => {
-                  this.onCall();
-                })
+              SemanticMaterialSurface({
+                role: MaterialRole.NORMAL_SURFACE,
+                emphasis: false,
+                radius: $r('app.float.radius_card')
+              }) {
+                this.headerCardBody()
               }
-              .padding($r('app.float.space_card_inner'))
-              .borderRadius($r('app.float.radius_card'))
-              .backgroundColor($r('app.color.card'))
-              .shadow({
-                radius: ThemeSpec.SHADOW_CARD_RADIUS,
-                color: ThemeSpec.SHADOW_CARD_COLOR,
-                offsetX: 0,
-                offsetY: ThemeSpec.SHADOW_CARD_OFFSET_Y
-              })
-              .opacity(this.appearCard >= 1 ? 1 : 0)
-              .translate({ y: this.appearCard >= 1 ? 0 : MotionSpec.ENTRANCE_TRANSLATE })
 
-              // ---- 状态卡 ----
+              // ---- 外呼状态卡（三行独立 Switch，校对#3）----
               if (this.calledCol !== '' || this.connectedCol !== '' || this.intentionCol !== '') {
                 Column() {
-                  if (this.calledCol !== '') {
-                    this.statusRow(this.calledCol, this.record.called,
-                      $r('app.string.status_pill_called'), $r('app.string.status_pill_uncalled'),
-                      (v: boolean): void => {
-                        this.markCalled(v);
-                      })
-                  }
-                  if (this.connectedCol !== '') {
-                    this.statusRow(this.connectedCol, this.connected,
-                      $r('app.string.status_connected'), $r('app.string.status_not_connected'),
-                      (v: boolean): void => {
-                        StatusDao.setValue(this.record.id, Constants.STATUS_KEY_CONNECTED, v).then(() => {
-                          this.connected = v;
-                        });
-                      })
-                  }
-                  if (this.intentionCol !== '') {
-                    this.statusRow(this.intentionCol, this.intention,
-                      $r('app.string.status_intention'), $r('app.string.status_no_intention'),
-                      (v: boolean): void => {
-                        StatusDao.setValue(this.record.id, Constants.STATUS_KEY_INTENTION, v).then(() => {
-                          this.intention = v;
-                        });
-                      })
+                  this.sectionLabel($r('app.string.detail_section_status'))
+                  SemanticMaterialSurface({
+                    role: MaterialRole.NORMAL_SURFACE,
+                    emphasis: false,
+                    radius: $r('app.float.radius_card')
+                  }) {
+                    this.statusCardBody()
                   }
                 }
-                .padding({ left: $r('app.float.space_card_inner'), right: $r('app.float.space_card_inner'), top: 4, bottom: 4 })
-                .borderRadius($r('app.float.radius_card'))
-                .backgroundColor($r('app.color.card'))
-                .shadow({
-                  radius: ThemeSpec.SHADOW_CARD_RADIUS,
-                  color: ThemeSpec.SHADOW_CARD_COLOR,
-                  offsetX: 0,
-                  offsetY: ThemeSpec.SHADOW_CARD_OFFSET_Y
-                })
+                .width('100%')
                 .margin({ top: $r('app.float.space_group') })
-                .opacity(this.appearCard >= 2 ? 1 : 0)
-                .translate({ y: this.appearCard >= 2 ? 0 : MotionSpec.ENTRANCE_TRANSLATE })
+                .opacity(this.appear >= 2 ? 1 : 0)
+                .translate({ y: this.appear >= 2 ? 0 : MotionSpec.ENTRANCE_TRANSLATE })
               }
 
-              // ---- 信息卡 ----
+              // ---- 客户信息卡 ----
               if (this.infoColumns().length > 0) {
                 Column() {
-                  ForEach(this.infoColumns(), (col: string, i: number) => {
-                    this.infoRow(col, this.record.rawData[col] ?? '', i < this.infoColumns().length - 1)
-                  }, (col: string, i: number) => i + '_' + col)
+                  this.sectionLabel($r('app.string.detail_section_info'))
+                  SemanticMaterialSurface({
+                    role: MaterialRole.NORMAL_SURFACE,
+                    emphasis: false,
+                    radius: $r('app.float.radius_card')
+                  }) {
+                    this.infoCardBody()
+                  }
                 }
-                .padding({ left: $r('app.float.space_card_inner'), right: $r('app.float.space_card_inner'), top: 4, bottom: 4 })
-                .borderRadius($r('app.float.radius_card'))
-                .backgroundColor($r('app.color.card'))
-                .shadow({
-                  radius: ThemeSpec.SHADOW_CARD_RADIUS,
-                  color: ThemeSpec.SHADOW_CARD_COLOR,
-                  offsetX: 0,
-                  offsetY: ThemeSpec.SHADOW_CARD_OFFSET_Y
-                })
+                .width('100%')
                 .margin({ top: $r('app.float.space_group') })
-                .opacity(this.appearCard >= 3 ? 1 : 0)
-                .translate({ y: this.appearCard >= 3 ? 0 : MotionSpec.ENTRANCE_TRANSLATE })
+                .opacity(this.appear >= 3 ? 1 : 0)
+                .translate({ y: this.appear >= 3 ? 0 : MotionSpec.ENTRANCE_TRANSLATE })
               }
             }
             .width('100%')
+            .constraintSize({ maxWidth: ThemeSpec.CONTENT_MAX_WIDTH_VP })
             .padding({ left: $r('app.float.space_page'), right: $r('app.float.space_page'), bottom: $r('app.float.space_group') })
           }
           .layoutWeight(1)
           .width('100%')
           .scrollBar(BarState.Off)
+          .opacity(this.appear >= 1 ? 1 : 0)
+          .translate({ x: this.appear >= 1 ? 0 : MotionSpec.PAGE_TRANSITION_TRANSLATE_X })
+          .scale({ x: this.appear >= 1 ? 1 : 0.985, y: this.appear >= 1 ? 1 : 0.985 })
         }
       }
       .width('100%')
       .height('100%')
-      .backgroundColor($r('app.color.bg'))
+      .backgroundColor($r('app.color.bg_page'))
     }
     .hideTitleBar(true)
     .onReady((ctx: NavDestinationContext) => {

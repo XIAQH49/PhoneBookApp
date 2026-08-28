@@ -5,68 +5,96 @@
       "value": "#FFFFFF"
     },
     {
-      "name": "primary",
-      "value": "#007DFF"
+      "name": "bg_page",
+      "value": "#F4F6F8"
     },
     {
-      "name": "primary_soft",
-      "value": "#E6F2FF"
-    },
-    {
-      "name": "bg",
-      "value": "#F5F6F8"
-    },
-    {
-      "name": "card",
+      "name": "surface_card",
       "value": "#FFFFFF"
     },
     {
+      "name": "primary",
+      "value": "#0A84FF"
+    },
+    {
+      "name": "primary_soft",
+      "value": "#E8F3FF"
+    },
+    {
       "name": "text_primary",
-      "value": "#1A1C1E"
+      "value": "#17191C"
     },
     {
       "name": "text_secondary",
-      "value": "#6B7280"
+      "value": "#69717D"
     },
     {
-      "name": "text_hint",
-      "value": "#9CA3AF"
+      "name": "text_tertiary",
+      "value": "#9BA3AE"
     },
     {
       "name": "success",
-      "value": "#00B578"
-    },
-    {
-      "name": "success_soft",
-      "value": "#E0F7EE"
+      "value": "#19B46B"
     },
     {
       "name": "warning",
-      "value": "#FF9500"
-    },
-    {
-      "name": "warning_soft",
-      "value": "#FFF1E0"
+      "value": "#F59E0B"
     },
     {
       "name": "danger",
-      "value": "#E84026"
+      "value": "#E84D5B"
     },
     {
       "name": "danger_soft",
-      "value": "#FDECEA"
+      "value": "#FDEBED"
     },
     {
       "name": "divider",
-      "value": "#14000000"
+      "value": "#E8ECF1"
+    },
+    {
+      "name": "ring_track",
+      "value": "#DDE1E6"
+    },
+    {
+      "name": "pill_uncalled_bg",
+      "value": "#FFF4E2"
+    },
+    {
+      "name": "pill_uncalled_fg",
+      "value": "#E89000"
+    },
+    {
+      "name": "pill_called_bg",
+      "value": "#EAF9F1"
+    },
+    {
+      "name": "pill_called_fg",
+      "value": "#159B5A"
+    },
+    {
+      "name": "pill_connected_bg",
+      "value": "#E8F3FF"
+    },
+    {
+      "name": "pill_connected_fg",
+      "value": "#0A84FF"
+    },
+    {
+      "name": "pill_intention_bg",
+      "value": "#F0EBFF"
+    },
+    {
+      "name": "pill_intention_fg",
+      "value": "#7657D9"
     },
     {
       "name": "bar_bg",
-      "value": "#CCFFFFFF"
+      "value": "#D1FFFFFF"
     },
     {
-      "name": "shadow",
-      "value": "#1F007DFF"
+      "name": "selection_border",
+      "value": "#1F0A84FF"
     }
   ]
 }

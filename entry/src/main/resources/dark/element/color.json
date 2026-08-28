@@ -5,68 +5,96 @@
       "value": "#000000"
     },
     {
+      "name": "bg_page",
+      "value": "#101214"
+    },
+    {
+      "name": "surface_card",
+      "value": "#1A1D21"
+    },
+    {
       "name": "primary",
       "value": "#4DA3FF"
     },
     {
       "name": "primary_soft",
-      "value": "#1A3A5C"
-    },
-    {
-      "name": "bg",
-      "value": "#121316"
-    },
-    {
-      "name": "card",
-      "value": "#1E2025"
+      "value": "#19324A"
     },
     {
       "name": "text_primary",
-      "value": "#E8EAED"
+      "value": "#F4F6F8"
     },
     {
       "name": "text_secondary",
-      "value": "#9AA0A8"
+      "value": "#AAB2BD"
     },
     {
-      "name": "text_hint",
-      "value": "#6B7280"
+      "name": "text_tertiary",
+      "value": "#737C87"
     },
     {
       "name": "success",
-      "value": "#2ED59A"
-    },
-    {
-      "name": "success_soft",
-      "value": "#123528"
+      "value": "#35D18A"
     },
     {
       "name": "warning",
       "value": "#FFB84D"
     },
     {
-      "name": "warning_soft",
-      "value": "#3A2A16"
-    },
-    {
       "name": "danger",
-      "value": "#FF6B52"
+      "value": "#FF6B78"
     },
     {
       "name": "danger_soft",
-      "value": "#3A201C"
+      "value": "#331B1F"
     },
     {
       "name": "divider",
-      "value": "#14FFFFFF"
+      "value": "#2A3038"
+    },
+    {
+      "name": "ring_track",
+      "value": "#2E333B"
+    },
+    {
+      "name": "pill_uncalled_bg",
+      "value": "#3A2C12"
+    },
+    {
+      "name": "pill_uncalled_fg",
+      "value": "#FFB84D"
+    },
+    {
+      "name": "pill_called_bg",
+      "value": "#0F2E20"
+    },
+    {
+      "name": "pill_called_fg",
+      "value": "#35D18A"
+    },
+    {
+      "name": "pill_connected_bg",
+      "value": "#19324A"
+    },
+    {
+      "name": "pill_connected_fg",
+      "value": "#4DA3FF"
+    },
+    {
+      "name": "pill_intention_bg",
+      "value": "#2A2247"
+    },
+    {
+      "name": "pill_intention_fg",
+      "value": "#A48EF0"
     },
     {
       "name": "bar_bg",
-      "value": "#CC1E2025"
+      "value": "#D11A1D21"
     },
     {
-      "name": "shadow",
-      "value": "#0D4DA3FF"
+      "name": "selection_border",
+      "value": "#1F4DA3FF"
     }
   ]
 }

@@ -1,9 +1,9 @@
 import { MotionSpec } from '../common/MotionSpec';
 
 /**
- * 完成率圆环（docs/14 第 3/5.4 节）：直径 96vp、环宽 8vp；
- * 底色 divider、进度主色、中心显示百分比；
- * 首次挂载弹性生长（springMotion(0.5,0.8)），后续数值变化平滑过渡。
+ * 完成率圆环（docs/15 二-组件规格/5.4）：直径 156vp、环宽 12vp；
+ * 环底 ring_track、进度 primary；中心 Text(0%) 32fp/Bold + Text(完成率) 14fp；
+ * animateTo(springMotion(0.65,0.86)) 同一状态变量驱动进度（0%→60% = 0°→216°），不做整圈旋转动画。
  */
 @Component
 export struct ProgressRing {
@@ -26,7 +26,7 @@ export struct ProgressRing {
     if (this.firstAppear) {
       return;
     }
-    this.getUIContext().animateTo({ curve: MotionSpec.pillSwitch() }, () => {
+    this.getUIContext().animateTo({ curve: MotionSpec.ringGrow() }, () => {
       this.sweep = this.percent;
     });
   }
@@ -36,7 +36,7 @@ export struct ProgressRing {
       Progress({ value: 100, total: 100, type: ProgressType.Ring })
         .width($r('app.float.ring_size'))
         .height($r('app.float.ring_size'))
-        .color($r('app.color.divider'))
+        .color($r('app.color.ring_track'))
         .style({ strokeWidth: $r('app.float.ring_width') })
       Progress({ value: this.sweep, total: 100, type: ProgressType.Ring })
         .width($r('app.float.ring_size'))
@@ -45,12 +45,12 @@ export struct ProgressRing {
         .style({ strokeWidth: $r('app.float.ring_width') })
       Column() {
         Text(this.percent + '%')
-          .fontSize(18)
+          .fontSize(32)
           .fontWeight(FontWeight.Bold)
           .fontColor($r('app.color.text_primary'))
         Text($r('app.string.stat_rate'))
-          .fontSize($r('app.float.font_caption'))
-          .fontColor($r('app.color.text_hint'))
+          .fontSize(14)
+          .fontColor($r('app.color.text_tertiary'))
       }
     }
     .width($r('app.float.ring_size'))

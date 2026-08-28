@@ -28,7 +28,7 @@ export struct NumberSheet {
             .layoutWeight(1)
           Button($r('app.string.copy_number'))
             .fontSize(13)
-            .backgroundColor($r('app.color.bg'))
+            .backgroundColor($r('app.color.bg_page'))
             .fontColor($r('app.color.text_secondary'))
             .borderRadius($r('app.float.radius_btn'))
             .onClick(() => {
@@ -45,12 +45,12 @@ export struct NumberSheet {
         .width('100%')
         .padding(12)
         .borderRadius($r('app.float.radius_item'))
-        .backgroundColor($r('app.color.card'))
+        .backgroundColor($r('app.color.surface_card'))
         .shadow({
-          radius: ThemeSpec.SHADOW_CARD_RADIUS,
-          color: ThemeSpec.SHADOW_CARD_COLOR,
+          radius: 16,
+          color: 'rgba(10,132,255,0.055)',
           offsetX: 0,
-          offsetY: ThemeSpec.SHADOW_CARD_OFFSET_Y
+          offsetY: 4
         })
         .margin({ bottom: 8 })
       }, (num: string, i: number) => `${num}_${i}`)

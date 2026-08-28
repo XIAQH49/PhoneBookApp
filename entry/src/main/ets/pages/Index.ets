@@ -1,4 +1,5 @@
 import { common } from '@kit.AbilityKit';
+import { mediaquery } from '@kit.ArkUI';
 import { MainViewModel } from '../viewmodel/MainViewModel';
 import { CallRecord, CountResult } from '../model/CallRecord';
 import { Constants } from '../common/Constants';
@@ -33,9 +34,10 @@ const FILTER_UNCALLED: number = 0;
 const FILTER_CALLED: number = 1;
 
 /**
- * 主列表页（FR-3 / FR-4 / FR-6；v0.7 UI 大重构，docs/14 4.1）：
- * 毛玻璃顶栏（大标题+责任人胶囊+圆形设置钮）+ 统计大卡 + 搜索胶囊 + 筛选胶囊 +
- * PersonCard 单列卡片列表（Grid 1 列，用户拍板：不做双列适配）+ 悬浮胶囊操作栏（4 动作）。
+ * 主列表页（FR-3 / FR-4 / FR-6；docs/15 ChatGPT 整理版 3.1/6.3 主依据）：
+ * Header 72vp（大标题 32fp + 责任人胶囊 + 圆形设置钮，不做毛玻璃）+ 统计大卡（唯一最高等级卡）+
+ * 搜索胶囊 + 计数筛选胶囊 + PersonCard 双列网格（≥360vp 双列、<360vp 单列、平板 maxWidth 1040vp）+
+ * 底部悬浮毛玻璃工具台（76vp，不占满全宽）；底栏预留 bottomPadding 132vp（6.4）。
  *
  * M2-2：router → Navigation 迁移。本页为导航宿主：子页（ContactDetail/Settings/
  * AssigneePicker）均为 NavDestination，经 NavPathStack.pushPathByName 压栈；
@@ -61,6 +63,7 @@ struct Index {
   @State showNumberSheet: boolean = false;
   @State sheetNumbers: string[] = [];
   @State sheetName: string = '';
+  @State isWide: boolean = false;
   private sheetRecord: CallRecord = new CallRecord();
   private confirmName: string = '';
   private confirmNumber: string = '';
@@ -71,6 +74,17 @@ struct Index {
   private builtinChecked: boolean = false;
 
   aboutToAppear(): void {
+    // 唯一硬断点（docs/15 十-5：<360vp→1 列、>=360vp→2 列；SGT-AL10≈391vp→双列）
+    try {
+      const listener: mediaquery.MediaQueryListener = this.getUIContext().getMediaQuery()
+        .matchMediaSync('(min-width: ' + ThemeSpec.BREAKPOINT_TWO_COL_VP + 'vp)');
+      this.isWide = listener.matches;
+      listener.on('change', (m: mediaquery.MediaQueryResult) => {
+        this.isWide = m.matches;
+      });
+    } catch (e) {
+      this.isWide = true;
+    }
     this.initPage();
   }
 
@@ -181,7 +195,7 @@ struct Index {
     const r: CountResult = await this.vm.refreshStats();
     this.statTotal = r.total;
     this.statCalled = r.called;
-    // 全部责任人总计（FR-4 总计行）
+    // 全部责任人总计（v0.5.1 功能保留）
     const all: CountResult = await CallListDao.countAllByStatus();
     this.allTotal = all.total;
     this.allCalled = all.called;
@@ -444,7 +458,7 @@ struct Index {
   }
 
   private assigneeLabel(): string {
-    return (this.assigneeName === '' ? '未分配' : this.assigneeName) + ' ▾';
+    return (this.assigneeName === '' ? '未分配' : this.assigneeName) + ' ⌄';
   }
 
   private phoneText(record: CallRecord): string {
@@ -481,44 +495,49 @@ struct Index {
           total: this.statTotal,
           called: this.statCalled,
           allTotal: this.allTotal,
-          allCalled: this.allCalled
+          allCalled: this.allCalled,
+          assignee: this.assigneeName
         })
 
-        // 搜索胶囊（全圆）
+        // 搜索胶囊（radius_search 22vp）
         Row() {
           Text('🔍')
             .fontSize(16)
-            .margin({ left: 14 })
+            .margin({ left: 16 })
           TextInput({ placeholder: $r('app.string.search_hint'), text: this.searchText })
-            .fontSize(14)
+            .fontSize($r('app.float.font_body'))
             .fontColor($r('app.color.text_primary'))
             .backgroundColor(Color.Transparent)
-            .height(44)
+            .height($r('app.float.search_height'))
             .layoutWeight(1)
-            .margin({ left: 8, right: 12 })
+            .margin({ left: 8, right: 14 })
             .onChange((v: string) => {
               this.onSearchChange(v);
             })
         }
-        .height(44)
-        .backgroundColor($r('app.color.card'))
-        .borderRadius($r('app.float.radius_pill'))
-        .margin({ left: $r('app.float.space_page'), right: $r('app.float.space_page'), top: $r('app.float.space_between'), bottom: $r('app.float.space_between') })
+        .height($r('app.float.search_height'))
+        .backgroundColor($r('app.color.surface_card'))
+        .border({ width: 1, color: $r('app.color.divider') })
+        .borderRadius($r('app.float.radius_search'))
+        .margin({ top: $r('app.float.space_between'), bottom: $r('app.float.space_between') })
 
         Row() {
           FilterChips({
             selected: this.filterIdx,
+            total: this.statTotal,
+            called: this.statCalled,
             onSelect: (i: number): void => {
               this.onFilterChange(i);
             }
           })
         }
-        .width('calc(100% - 32vp)')
-        .justifyContent(FlexAlign.SpaceBetween)
-        .margin({ left: $r('app.float.space_page'), right: $r('app.float.space_page'), bottom: $r('app.float.space_group') })
+        .width('100%')
+        .margin({ bottom: $r('app.float.space_group') })
       }
       .width('100%')
     }
+    .columnStart(0)
+    .columnEnd(this.isWide ? 1 : 0)
   }
 
   @Builder
@@ -530,11 +549,13 @@ struct Index {
         .fontColor($r('app.color.text_primary'))
       Blank()
       Text(this.assigneeLabel())
-        .fontSize(14)
+        .fontSize($r('app.float.font_body'))
         .fontColor($r('app.color.primary'))
         .backgroundColor($r('app.color.primary_soft'))
-        .padding({ left: 12, right: 12, top: 6, bottom: 6 })
-        .borderRadius($r('app.float.radius_pill'))
+        .height(44)
+        .padding({ left: 16, right: 16 })
+        .borderRadius(22)
+        .textAlign(TextAlign.Center)
         .onClick(() => {
           this.goAssigneePicker();
         })
@@ -547,9 +568,10 @@ struct Index {
         .margin({ left: 12 })
     }
     .width('100%')
-    .padding({ left: $r('app.float.space_page'), right: $r('app.float.space_page'), top: 8, bottom: 12 })
-    .backgroundColor($r('app.color.bar_bg'))
-    .backgroundBlurStyle(ThemeSpec.BAR_BLUR)
+    .constraintSize({ maxWidth: ThemeSpec.CONTENT_MAX_WIDTH_VP })
+    .height($r('app.float.header_height'))
+    .padding({ left: $r('app.float.space_page'), right: $r('app.float.space_page') })
+    .backgroundColor($r('app.color.bg_page'))
   }
 
   @Builder
@@ -568,14 +590,16 @@ struct Index {
           this.personItem(record, index)
         }, (record: CallRecord) => record.id.toString() + '_' + this.vm.version())
       }
-      .columnsTemplate('1fr')
+      .columnsTemplate(this.isWide ? '1fr 1fr' : '1fr')
       .columnsGap($r('app.float.space_between'))
       .rowsGap($r('app.float.space_between'))
+      .cachedCount(8)
+      .constraintSize({ maxWidth: ThemeSpec.CONTENT_MAX_WIDTH_VP })
       .padding({
         left: $r('app.float.space_page'),
         right: $r('app.float.space_page'),
-        top: 76,
-        bottom: 96
+        top: $r('app.float.header_height'),
+        bottom: $r('app.float.grid_bottom_padding')
       })
       .width('100%')
       .height('100%')
@@ -589,13 +613,13 @@ struct Index {
   build() {
     Navigation(this.pathStack) {
       Stack({ alignContent: Alignment.Bottom }) {
-        Stack({ alignContent: Alignment.TopStart }) {
+        Stack({ alignContent: Alignment.Top }) {
           Column() {
             this.contentArea()
           }
           .width('100%')
           .height('100%')
-          .backgroundColor($r('app.color.bg'))
+          .backgroundColor($r('app.color.bg_page'))
 
           this.topBar()
         }
@@ -619,7 +643,7 @@ struct Index {
             this.onExport();
           }
         })
-          .margin({ bottom: 12 })
+          .margin({ bottom: 16 })
       }
       .width('100%')
       .height('100%')
