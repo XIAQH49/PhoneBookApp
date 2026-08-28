@@ -14,7 +14,6 @@ import { ConfigDao } from '../database/ConfigDao';
 import { DbHelper } from '../database/DbHelper';
 import { CallListDao } from '../database/CallListDao';
 import { ThemeSpec } from '../common/ThemeSpec';
-import { WindowInsets } from '../common/WindowInsets';
 import { StatCard } from '../components/StatCard';
 import { EmptyView } from '../components/EmptyView';
 import { PersonCard } from '../components/PersonCard';
@@ -104,14 +103,6 @@ struct Index {
     try {
       // 等待数据库就绪（冷启动 EntryAbility 异步初始化可能尚未完成，避免瞬时失败）
       await DbHelper.ready();
-      // 沉浸安全区测量（docs/16 6.2）：成功才 expandSafeArea，失败回退避让保证不重叠
-      const ctx: common.UIAbilityContext | undefined = ContextUtil.getAbilityContext(this.getUIContext());
-      if (ctx !== undefined) {
-        const ok: boolean = await WindowInsets.load(ctx, this.getUIContext());
-        this.immersive = ok;
-        this.insetTop = WindowInsets.top();
-        this.insetBottom = WindowInsets.bottom();
-      }
       await this.vm.init();
       await this.syncAll();
       // v0.5：内置名单变化检测（每次启动仅一次，内容哈希变化才导入，已打状态保留）
@@ -699,36 +690,28 @@ struct Index {
 
   build() {
     Navigation(this.pathStack) {
+      // 内容层：系统安全区避让（ArkUI 默认）；系统栏底色由 EntryAbility 融合为页面同色（docs/16 6.2）
       Stack({ alignContent: Alignment.Bottom }) {
-        // 背景层：expandSafeArea 铺满状态栏/导航栏（docs/16 6.2，测量成功才扩展）
-        Column()
-          .width('100%')
-          .height('100%')
-          .backgroundColor($r('app.color.bg_page'))
-          .expandSafeArea(this.immersive ? [SafeAreaType.SYSTEM] : undefined,
-            this.immersive ? [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM] : undefined)
-
-        // 内容层：保持系统安全区避让（顶栏覆盖滚动内容，毛玻璃穿透）
-        Stack({ alignContent: Alignment.Bottom }) {
-          Stack({ alignContent: Alignment.Top }) {
-            Column() {
-              this.contentArea()
-            }
-            .width('100%')
-            .height('100%')
-
-            this.topBar()
+        Stack({ alignContent: Alignment.Top }) {
+          Column() {
+            this.contentArea()
           }
           .width('100%')
           .height('100%')
+          .backgroundColor($r('app.color.bg_page'))
 
-          BottomActionBar({
-            importing: this.importing,
-            importStage: this.importStage,
-            exporting: this.exporting,
-            onImport: (): void => {
-              this.onImport();
-            },
+          this.topBar()
+        }
+        .width('100%')
+        .height('100%')
+
+        BottomActionBar({
+          importing: this.importing,
+          importStage: this.importStage,
+          exporting: this.exporting,
+          onImport: (): void => {
+            this.onImport();
+          },
             onBuiltin: (): void => {
               this.checkBuiltin(true);
             },
@@ -740,9 +723,6 @@ struct Index {
             }
           })
             .margin({ bottom: 16 })
-        }
-        .width('100%')
-        .height('100%')
       }
       .width('100%')
       .height('100%')

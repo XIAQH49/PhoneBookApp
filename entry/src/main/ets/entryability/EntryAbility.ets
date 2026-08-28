@@ -5,6 +5,10 @@ import { DbHelper } from '../database/DbHelper';
 
 const DOMAIN = 0x0000;
 
+/** 系统栏底色（与资源 app.color.bg_page 双套保持一致，docs/16 6.2：无白边/黑边） */
+const BAR_BG_LIGHT: string = '#F4F6F8';
+const BAR_BG_DARK: string = '#101214';
+
 export default class EntryAbility extends UIAbility {
   private winStage: window.WindowStage | undefined = undefined;
 
@@ -28,24 +32,23 @@ export default class EntryAbility extends UIAbility {
   }
 
   /**
-   * 沉浸式系统栏（docs/16 6.2 硬性要求，无白边/黑边）：
-   * 窗口全屏布局 + 状态栏/导航栏透明 + 图标颜色随深浅色。
-   * 根组件在安全区测量成功后 expandSafeArea（见 common/WindowInsets），内容按安全区 padding。
+   * 系统栏融合（docs/16 6.2，无白边/黑边）：
+   * 状态栏/导航栏底色固定为页面背景同色（浅 #F4F6F8 / 深 #101214），图标颜色随深浅色；
+   * 内容层保持系统安全区避让（ArkUI 默认），绝不重叠——expandSafeArea 在 Navigation 嵌套下不生效（真机实测）。
    */
   private async setImmersive(stage: window.WindowStage): Promise<void> {
     try {
       const win: window.Window = stage.getMainWindowSync();
-      await win.setWindowLayoutFullScreen(true);
       const dark: boolean = this.context.config.colorMode === ConfigurationConstant.ColorMode.COLOR_MODE_DARK;
       const props: window.SystemBarProperties = {
-        statusBarColor: '#00000000',
-        navigationBarColor: '#00000000',
+        statusBarColor: dark ? BAR_BG_DARK : BAR_BG_LIGHT,
+        navigationBarColor: dark ? BAR_BG_DARK : BAR_BG_LIGHT,
         statusBarContentColor: dark ? '#FFFFFF' : '#000000',
         navigationBarContentColor: dark ? '#FFFFFF' : '#000000'
       };
       await win.setWindowSystemBarProperties(props);
     } catch (err) {
-      hilog.error(DOMAIN, 'PhoneBook', 'set immersive failed: %{public}s', JSON.stringify(err));
+      hilog.error(DOMAIN, 'PhoneBook', 'set system bar failed: %{public}s', JSON.stringify(err));
     }
   }
 
@@ -61,16 +64,16 @@ export default class EntryAbility extends UIAbility {
       }
       hilog.info(DOMAIN, 'testTag', 'Succeeded in loading the content.');
       this.setImmersive(windowStage).catch((e: Error) => {
-        hilog.error(DOMAIN, 'PhoneBook', 'set immersive init failed: %{public}s', e.message);
+        hilog.error(DOMAIN, 'PhoneBook', 'set system bar init failed: %{public}s', e.message);
       });
     });
   }
 
-  /** 深浅色切换时同步系统栏图标颜色 */
+  /** 深浅色切换时同步系统栏底色与图标颜色 */
   onConfigurationUpdate(newConfig: Configuration): void {
     if (this.winStage !== undefined) {
       this.setImmersive(this.winStage).catch((e: Error) => {
-        hilog.error(DOMAIN, 'PhoneBook', 'config immersive failed: %{public}s', e.message);
+        hilog.error(DOMAIN, 'PhoneBook', 'config system bar failed: %{public}s', e.message);
       });
     }
   }

@@ -41,8 +41,6 @@ export struct ContactDetail {
   @State sheetNumbers: string[] = [];
   @State sheetName: string = '';
   @State appear: number = 0;
-  @State immersive: boolean = false;
-  @State insetTop: number = 0;
   private confirmName: string = '';
   private confirmNumber: string = '';
   private confirmController: CustomDialogController | undefined = undefined;
@@ -65,12 +63,6 @@ export struct ContactDetail {
   }
 
   async loadRecord(id: number): Promise<void> {
-    const ctx: common.UIAbilityContext | undefined = ContextUtil.getAbilityContext(this.getUIContext());
-    if (ctx !== undefined) {
-      const ok: boolean = await WindowInsets.load(ctx, this.getUIContext());
-      this.immersive = ok;
-      this.insetTop = WindowInsets.top();
-    }
     const rec: CallRecord | undefined = await CallListDao.getById(id);
     if (rec === undefined) {
       this.loaded = false;
@@ -406,18 +398,9 @@ export struct ContactDetail {
 
   build() {
     NavDestination() {
-      Stack({ alignContent: Alignment.Top }) {
-        // 背景层：expandSafeArea 铺满状态栏/导航栏（docs/16 6.2，测量成功才扩展）
-        Column()
-          .width('100%')
-          .height('100%')
-          .backgroundColor($r('app.color.bg_page'))
-          .expandSafeArea(this.immersive ? [SafeAreaType.SYSTEM] : undefined,
-            this.immersive ? [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM] : undefined)
-
-        Column() {
-          // 顶部栏：50vp 圆形返回 + 居中标题（姓名）+ 右侧占位（保持对称）
-          Row() {
+      Column() {
+        // 顶部栏：50vp 圆形返回 + 居中标题（姓名）+ 右侧占位（保持对称）
+        Row() {
           IconButton({
             icon: '←',
             onTap: (): void => {
@@ -509,9 +492,7 @@ export struct ContactDetail {
       }
       .width('100%')
       .height('100%')
-      }
-      .width('100%')
-      .height('100%')
+      .backgroundColor($r('app.color.bg_page'))
     }
     .hideTitleBar(true)
     .onReady((ctx: NavDestinationContext) => {

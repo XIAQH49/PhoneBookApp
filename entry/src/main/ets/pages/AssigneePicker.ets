@@ -2,9 +2,6 @@ import { CallListDao } from '../database/CallListDao';
 import { ConfigDao } from '../database/ConfigDao';
 import { CountResult } from '../model/CallRecord';
 import { Constants } from '../common/Constants';
-import { common } from '@kit.AbilityKit';
-import { ContextUtil } from '../common/ContextUtil';
-import { WindowInsets } from '../common/WindowInsets';
 import { ThemeSpec } from '../common/ThemeSpec';
 import { IconButton } from '../components/IconButton';
 
@@ -13,7 +10,7 @@ import { IconButton } from '../components/IconButton';
  * 搜索胶囊 + 列表行带任务统计（「张三 20 条任务 · 12 条已打」）；
  * 选中：primary_soft 底 + 左 8vp 蓝色指示条（selection 语义）；
  * 行点击 → 写配置 → pop 返回（宿主 Index 经 onPop 回调自动重载，链路与旧版一致）。
- * 沉浸（docs/16 6.2）：背景层 expandSafeArea（测量成功才扩展），内容层保持安全区避让。
+ * 沉浸（docs/16 6.2）：系统栏底色由 EntryAbility 融合为页面同色；内容层保持系统安全区避让。
  *
  * M2-2：router → Navigation 迁移。本页为 NavDestination；
  * 返回统一 pop(带结果) 并拦截系统返回，保证宿主 Index 的 onPop 回调触发。
@@ -24,8 +21,6 @@ export struct AssigneePicker {
   @State keyword: string = '';
   @State current: string = '';
   @State statsMap: Record<string, CountResult> = {};
-  @State immersive: boolean = false;
-  @State insetTop: number = 0;
   private stack: NavPathStack | undefined = undefined;
 
   /** NavDestination 就绪回调：记录栈引用 */
@@ -42,12 +37,6 @@ export struct AssigneePicker {
   }
 
   async aboutToAppear(): Promise<void> {
-    const ctx: common.UIAbilityContext | undefined = ContextUtil.getAbilityContext(this.getUIContext());
-    if (ctx !== undefined) {
-      const ok: boolean = await WindowInsets.load(ctx, this.getUIContext());
-      this.immersive = ok;
-      this.insetTop = WindowInsets.top();
-    }
     this.list = await CallListDao.getAssigneeList();
     this.current = await ConfigDao.getLastAssignee();
     await this.loadStats();
@@ -83,35 +72,25 @@ export struct AssigneePicker {
 
   build() {
     NavDestination() {
-      Stack({ alignContent: Alignment.Top }) {
-        // 背景层：expandSafeArea 铺满状态栏/导航栏（docs/16 6.2，测量成功才扩展）
-        Column()
-          .width('100%')
-          .height('100%')
-          .backgroundColor($r('app.color.bg_page'))
-          .expandSafeArea(this.immersive ? [SafeAreaType.SYSTEM] : undefined,
-            this.immersive ? [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM] : undefined)
-
-        // 内容层：保持系统安全区避让
-        Column() {
-          // 顶部栏：50vp 圆形返回 + 居中标题 + 右侧占位（保持对称）
-          Row() {
-            IconButton({
-              icon: '←',
-              onTap: (): void => {
-                this.popBack();
-              }
-            })
-            Blank()
-            Text($r('app.string.assignee_picker_title'))
-              .fontSize($r('app.float.font_headline'))
-              .fontWeight(FontWeight.Bold)
-              .fontColor($r('app.color.text_primary'))
-            Blank()
-            Row()
-              .width($r('app.float.icon_btn_size'))
-              .height($r('app.float.icon_btn_size'))
-          }
+      Column() {
+        // 顶部栏：50vp 圆形返回 + 居中标题 + 右侧占位（保持对称）
+        Row() {
+          IconButton({
+            icon: '←',
+            onTap: (): void => {
+              this.popBack();
+            }
+          })
+          Blank()
+          Text($r('app.string.assignee_picker_title'))
+            .fontSize($r('app.float.font_headline'))
+            .fontWeight(FontWeight.Bold)
+            .fontColor($r('app.color.text_primary'))
+          Blank()
+          Row()
+            .width($r('app.float.icon_btn_size'))
+            .height($r('app.float.icon_btn_size'))
+        }
           .width('100%')
           .constraintSize({ maxWidth: ThemeSpec.CONTENT_MAX_WIDTH_VP })
           .height($r('app.float.header_height'))
@@ -204,9 +183,7 @@ export struct AssigneePicker {
         }
         .width('100%')
         .height('100%')
-      }
-      .width('100%')
-      .height('100%')
+        .backgroundColor($r('app.color.bg_page'))
     }
     .hideTitleBar(true)
     .onReady((ctx: NavDestinationContext) => {
