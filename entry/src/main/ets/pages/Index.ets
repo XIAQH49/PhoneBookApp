@@ -73,7 +73,7 @@ struct Index {
   private builtinChecked: boolean = false;
 
   aboutToAppear(): void {
-    // 响应式断点（docs/14 4.1/13.4：<600vp 单列，≥600vp 双列）
+    // 响应式断点（docs/14 4.1 勘误后：<360vp 单列，≥360vp 双列）
     try {
       const listener: mediaquery.MediaQueryListener = this.getUIContext().getMediaQuery()
         .matchMediaSync('(min-width: ' + ThemeSpec.BREAKPOINT_WIDE_VP + 'vp)');

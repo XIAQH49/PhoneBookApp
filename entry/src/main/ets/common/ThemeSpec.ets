@@ -12,8 +12,11 @@ export class ThemeSpec {
   static readonly SHADOW_RAISED_COLOR: string = 'rgba(0,125,255,0.12)';
   static readonly SHADOW_RAISED_OFFSET_Y: number = 12;
 
-  // ---- 响应式断点（4.1：<600vp 单列；≥600vp 双列）----
-  static readonly BREAKPOINT_WIDE_VP: number = 600;
+  // ---- 响应式断点（4.1：双列网格阈值）----
+  // 真机实测修正（SGT-AL10，1320px ≈ 391vp，density≈3.375）：
+  // docs/14 原值 600vp 会把参考设备判为窄屏单列，违背参考截图（本设备双列）；
+  // 实测换算后修正为 360vp：≥360vp（本平板 391vp 与常规手机）双列，<360vp 窄屏单列。
+  static readonly BREAKPOINT_WIDE_VP: number = 360;
 
   // ---- 毛玻璃（顶栏/底部操作栏，5.5）----
   static readonly BAR_BLUR: BlurStyle = BlurStyle.Thick;
