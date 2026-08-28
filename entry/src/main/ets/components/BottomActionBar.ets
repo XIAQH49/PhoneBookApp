@@ -201,7 +201,7 @@ export struct BottomActionBar {
       .padding({ left: 12, right: 12, top: 8, bottom: 8 })
       .borderRadius($r('app.float.radius_bar'))
       .backgroundColor(ThemeSpec.immersiveEnabled ? this.tokens().backgroundColor : $r('app.color.surface_card'))
-      .backgroundBlurStyle(ThemeSpec.immersiveEnabled ? ThemeSpec.BAR_BLUR : BlurStyle.NONE)
+      .backdropBlur(ThemeSpec.immersiveEnabled ? ThemeSpec.BAR_BLUR_RADIUS : 0)
       .border({
         width: this.tokens().borderWidth,
         color: this.tokens().borderColor
@@ -213,14 +213,15 @@ export struct BottomActionBar {
         offsetY: this.tokens().shadowOffsetY
       })
 
-      // 顶部光线勾勒（官方"光线勾勒"等效：白 0.10 → 0 渐变，光从上方来）
+      // 玻璃顶缘反射带（环境光反射：白 0.42 → 0，与玻璃同圆角）
       Stack()
         .width('calc(100% - 48vp)')
         .constraintSize({ maxWidth: ThemeSpec.BAR_MAX_WIDTH_VP })
-        .height(3)
+        .height(12)
+        .borderRadius($r('app.float.radius_bar'))
         .linearGradient({
           angle: 270,
-          colors: [[ThemeSpec.glowColor(0.10), 0.0], ['rgba(255,255,255,0)', 1.0]]
+          colors: [[ThemeSpec.REFLECT_COLOR, 0.0], ['rgba(255,255,255,0)', 1.0]]
         })
         .hitTestBehavior(HitTestMode.None)
     }

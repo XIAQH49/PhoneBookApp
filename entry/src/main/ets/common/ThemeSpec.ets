@@ -67,10 +67,15 @@ export interface CardVisualSpec {
 }
 
 export class ThemeSpec {
-  // ---- 毛玻璃（docs/15 校对#6：只给浮层；COMPONENT_ULTRA_THICK 真机观感为纯色（降级）→ 换系统背景语义最厚档，模糊可感知）----
-  static readonly BAR_BLUR: BlurStyle = BlurStyle.BACKGROUND_ULTRA_THICK;
+  // ---- 毛玻璃（docs/15 校对#6：只给浮层；真机确认 backgroundBlurStyle 系统材质在本层级仅渲染遮罩色
+  //      （用户反馈"变暗变灰"，药不对症）→ 改用真实背景高斯模糊 backdropBlur(radius)：模糊"背后内容"，
+  //      玻璃=低alpha半透明底 + 背后高斯模糊 + 顶部反射光带 + 高光描边）----
+  /** 背景高斯模糊半径（vp；官方社区甜蜜点 15~35，取 26——低于15像薄纱，高于35失去色彩辨识度） */
+  static readonly BAR_BLUR_RADIUS: number = 26;
   /** 浮层描边（docs/15 四-floating-tool：border rgba(255,255,255,0.55)） */
   static readonly FLOATING_BORDER_COLOR: string = 'rgba(255,255,255,0.55)';
+  /** 玻璃顶缘反射光带（白 → 透明 渐变，模拟环境光反射） */
+  static readonly REFLECT_COLOR: string = 'rgba(255,255,255,0.42)';
 
   // ---- 布局（docs/15 七-尺寸总表）----
   static readonly CONTENT_MAX_WIDTH_VP: number = 1040;
@@ -154,7 +159,8 @@ export class ThemeSpec {
         shadowRadius: 16, shadowOffsetY: 6, shadowAlpha: 0.20, lightOpacity: 0
       };
     } else if (role === MaterialRole.FLOATING_TOOL) {
-      // rgba(surface,0.72) + blur ultra-thick + border rgba(255,255,255,0.55) + shadowRadius 32/alpha 0.18/offsetY 10（最大档增强）
+      // rgba(surface,0.30) + backdropBlur(26) + border rgba(255,255,255,0.55)
+      // + shadowRadius 32/alpha 0.18/offsetY 10（最大档增强）
       t = {
         backgroundColor: $r('app.color.bar_bg'), borderColor: ThemeSpec.FLOATING_BORDER_COLOR,
         borderWidth: lp.borderWidth, shadowRadius: 32, shadowOffsetY: 10, shadowAlpha: 0.18, lightOpacity: 0.06
