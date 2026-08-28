@@ -21,8 +21,20 @@
       "value": "导出结果"
     },
     {
+      "name": "menu_builtin",
+      "value": "内置名单"
+    },
+    {
+      "name": "menu_export_builtin",
+      "value": "导出原始文件"
+    },
+    {
       "name": "menu_settings",
       "value": "设置"
+    },
+    {
+      "name": "home_title",
+      "value": "外呼名单"
     },
     {
       "name": "filter_all",
@@ -41,6 +53,10 @@
       "value": "搜索姓名/工号/手机"
     },
     {
+      "name": "search_assignee_hint",
+      "value": "搜索责任人"
+    },
+    {
       "name": "unassigned",
       "value": "未分配"
     },
@@ -51,6 +67,10 @@
     {
       "name": "assignee_empty_tip",
       "value": "当前责任人名下暂无数据，请点击右上角切换责任人"
+    },
+    {
+      "name": "empty_import_action",
+      "value": "导入名单"
     },
     {
       "name": "call",
@@ -105,8 +125,20 @@
       "value": "拨号前确认"
     },
     {
+      "name": "strip_country_call",
+      "value": "拨号前去除+86（兼容）"
+    },
+    {
       "name": "export_scope",
       "value": "导出范围"
+    },
+    {
+      "name": "section_call",
+      "value": "拨号"
+    },
+    {
+      "name": "section_data",
+      "value": "数据信息"
     },
     {
       "name": "multiple_numbers",
@@ -125,8 +157,60 @@
       "value": "一键清除名单"
     },
     {
-      "name": "strip_country_call",
-      "value": "拨号前去除+86（兼容）"
+      "name": "detail_title",
+      "value": "详情"
+    },
+    {
+      "name": "detail_section_status",
+      "value": "状态"
+    },
+    {
+      "name": "detail_section_info",
+      "value": "信息"
+    },
+    {
+      "name": "stat_called",
+      "value": "已打"
+    },
+    {
+      "name": "stat_uncalled",
+      "value": "未打"
+    },
+    {
+      "name": "stat_rate",
+      "value": "完成率"
+    },
+    {
+      "name": "stat_all_total_hint",
+      "value": "全部责任人：共 %d 条 · 已打 %d 条"
+    },
+    {
+      "name": "status_pill_called",
+      "value": "✓ 已打"
+    },
+    {
+      "name": "status_pill_uncalled",
+      "value": "● 未打"
+    },
+    {
+      "name": "status_connected",
+      "value": "✓ 打通"
+    },
+    {
+      "name": "status_not_connected",
+      "value": "○ 未打通"
+    },
+    {
+      "name": "status_intention",
+      "value": "✓ 有意向"
+    },
+    {
+      "name": "status_no_intention",
+      "value": "○ 无意向"
+    },
+    {
+      "name": "back",
+      "value": "← 返回"
     }
   ]
 }

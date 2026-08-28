@@ -1,4 +1,5 @@
 import { common } from '@kit.AbilityKit';
+import { mediaquery } from '@kit.ArkUI';
 import { MainViewModel } from '../viewmodel/MainViewModel';
 import { CallRecord, CountResult } from '../model/CallRecord';
 import { Constants } from '../common/Constants';
@@ -13,9 +14,13 @@ import { CallService } from '../service/CallService';
 import { ConfigDao } from '../database/ConfigDao';
 import { DbHelper } from '../database/DbHelper';
 import { CallListDao } from '../database/CallListDao';
-import { StatBar } from '../components/StatBar';
+import { ThemeSpec } from '../common/ThemeSpec';
+import { StatCard } from '../components/StatCard';
 import { FilterChips } from '../components/FilterChips';
 import { EmptyView } from '../components/EmptyView';
+import { PersonCard } from '../components/PersonCard';
+import { BottomActionBar } from '../components/BottomActionBar';
+import { IconButton } from '../components/IconButton';
 import { NumberSheet } from '../components/NumberSheet';
 import { CallConfirmDialog } from '../components/CallConfirmDialog';
 import { ContactDetail } from './ContactDetail';
@@ -29,8 +34,9 @@ const FILTER_UNCALLED: number = 0;
 const FILTER_CALLED: number = 1;
 
 /**
- * 主列表页（FR-3 / FR-4 / FR-6）：统计、搜索、筛选、分页列表、
- * 一键标记已打、导入/导出入口、唤起拨号。
+ * 主列表页（FR-3 / FR-4 / FR-6；v0.7 UI 大重构，docs/14 4.1）：
+ * 毛玻璃顶栏（大标题+责任人胶囊+圆形设置钮）+ 统计大卡 + 搜索胶囊 + 筛选胶囊 +
+ * PersonCard 双列网格（Grid 2 列，<600vp 单列降级）+ 悬浮胶囊操作栏（4 动作）。
  *
  * M2-2：router → Navigation 迁移。本页为导航宿主：子页（ContactDetail/Settings/
  * AssigneePicker）均为 NavDestination，经 NavPathStack.pushPathByName 压栈；
@@ -56,6 +62,7 @@ struct Index {
   @State showNumberSheet: boolean = false;
   @State sheetNumbers: string[] = [];
   @State sheetName: string = '';
+  @State isWide: boolean = false;
   private sheetRecord: CallRecord = new CallRecord();
   private confirmName: string = '';
   private confirmNumber: string = '';
@@ -66,6 +73,17 @@ struct Index {
   private builtinChecked: boolean = false;
 
   aboutToAppear(): void {
+    // 响应式断点（docs/14 4.1/13.4：<600vp 单列，≥600vp 双列）
+    try {
+      const listener: mediaquery.MediaQueryListener = this.getUIContext().getMediaQuery()
+        .matchMediaSync('(min-width: ' + ThemeSpec.BREAKPOINT_WIDE_VP + 'vp)');
+      this.isWide = listener.matches;
+      listener.on('change', (m: mediaquery.MediaQueryResult) => {
+        this.isWide = m.matches;
+      });
+    } catch (e) {
+      this.isWide = true;
+    }
     this.initPage();
   }
 
@@ -438,145 +456,185 @@ struct Index {
     })
   }
 
-  @Builder
-  listItem(record: CallRecord, index: number) {
-    Row() {
-      Checkbox()
-        .select(record.called)
-        .onChange((v: boolean) => {
-          this.onToggle(record, index, v);
-        })
-      Column() {
-        Text(record.name !== '' ? record.name : '（无姓名）')
-          .fontSize(16)
-          .fontWeight(FontWeight.Medium)
-        Text(record.empNo !== '' ? '工号 ' + record.empNo : '')
-          .fontSize(12)
-          .fontColor('#999999')
-        Text(record.phoneNumbers.length > 1 ? '手机 ×' + record.phoneNumbers.length : record.phoneRaw)
-          .fontSize(12)
-          .fontColor('#666666')
-      }
-      .alignItems(HorizontalAlign.Start)
-      .layoutWeight(1)
-      .onClick(() => {
-        this.goDetail(record);
-      })
-      Text(record.called ? '✓ 已打' : '● 未打')
-        .fontSize(12)
-        .fontColor(record.called ? '#007DFF' : '#E84026')
-        .margin({ right: 8 })
-        .onClick(() => {
-          this.onToggle(record, index, !record.called);
-        })
-      Button('📞')
-        .fontSize(18)
-        .backgroundColor('#00000000')
-        .onClick(() => {
-          this.onCall(record);
-        })
-    }
-    .width('100%')
-    .padding({ left: 16, right: 16, top: 10, bottom: 10 })
-    .alignItems(VerticalAlign.Center)
+  private assigneeLabel(): string {
+    return (this.assigneeName === '' ? '未分配' : this.assigneeName) + ' ▾';
   }
 
-  build() {
-    Navigation(this.pathStack) {
-      Column() {
-        // 标题栏
-        Row() {
-          Text('外呼名单')
-            .fontSize(20)
-            .fontWeight(FontWeight.Bold)
-          Blank()
-          Text(this.assigneeName === '' ? '未分配 ▾' : this.assigneeName + ' ▾')
-            .fontSize(14)
-            .fontColor('#007DFF')
-            .onClick(() => {
-              this.goAssigneePicker();
-            })
-          Text(' ⚙')
-            .fontSize(16)
-            .margin({ left: 12 })
-            .onClick(() => {
-              this.goSettings();
-            })
-        }
-        .width('100%')
-        .padding({ left: 16, right: 16, top: 12, bottom: 4 })
+  private phoneText(record: CallRecord): string {
+    return record.phoneNumbers.length > 1 ? '手机 ×' + record.phoneNumbers.length : record.phoneRaw;
+  }
 
-        StatBar({
+  @Builder
+  personItem(record: CallRecord, index: number) {
+    GridItem() {
+      PersonCard({
+        name: record.name,
+        phoneText: this.phoneText(record),
+        empNo: record.empNo,
+        called: record.called,
+        staggerIndex: index,
+        onToggle: (): void => {
+          this.onToggle(record, index, !record.called);
+        },
+        onCall: (): void => {
+          this.onCall(record);
+        },
+        onOpen: (): void => {
+          this.goDetail(record);
+        }
+      })
+    }
+  }
+
+  @Builder
+  gridHeader() {
+    GridItem() {
+      Column() {
+        StatCard({
           total: this.statTotal,
           called: this.statCalled,
           allTotal: this.allTotal,
           allCalled: this.allCalled
         })
 
-        TextInput({ placeholder: $r('app.string.search_hint'), text: this.searchText })
-          .height(40)
-          .margin({ left: 16, right: 16, top: 4, bottom: 4 })
-          .onChange((v: string) => {
-            this.onSearchChange(v);
-          })
-
-        FilterChips({
-          selected: this.filterIdx,
-          onSelect: (i: number): void => {
-            this.onFilterChange(i);
-          }
-        })
-
-        if (!this.hasData && !this.importing) {
-          EmptyView({
-            tip: this.showSwitchHint ? $r('app.string.assignee_empty_tip') : $r('app.string.empty_import_tip')
-          })
-        } else {
-          List() {
-            LazyForEach(this.vm, (record: CallRecord, index: number) => {
-              this.listItem(record, index)
-            }, (record: CallRecord) => record.id.toString() + '_' + this.vm.version())
-          }
-          .layoutWeight(1)
-          .divider({ strokeWidth: 0.5, color: '#F1F3F5' })
-          .onReachEnd(() => {
-            this.vm.loadMore();
-          })
+        // 搜索胶囊（全圆）
+        Row() {
+          Text('🔍')
+            .fontSize(16)
+            .margin({ left: 14 })
+          TextInput({ placeholder: $r('app.string.search_hint'), text: this.searchText })
+            .fontSize(14)
+            .fontColor($r('app.color.text_primary'))
+            .backgroundColor(Color.Transparent)
+            .height(44)
+            .layoutWeight(1)
+            .margin({ left: 8, right: 12 })
+            .onChange((v: string) => {
+              this.onSearchChange(v);
+            })
         }
+        .height(44)
+        .backgroundColor($r('app.color.card'))
+        .borderRadius($r('app.float.radius_pill'))
+        .margin({ left: $r('app.float.space_page'), right: $r('app.float.space_page'), top: $r('app.float.space_between'), bottom: $r('app.float.space_between') })
 
         Row() {
-          Button(this.importing ? this.importStage : '导入名单')
-            .fontSize(14)
-            .layoutWeight(1)
-            .enabled(!this.importing)
-            .onClick(() => {
-              this.onImport();
-            })
-          Button('内置名单')
-            .fontSize(14)
-            .layoutWeight(1)
-            .margin({ left: 8 })
-            .onClick(() => {
-              this.checkBuiltin(true);
-            })
-          Button('导出原始文件')
-            .fontSize(14)
-            .layoutWeight(1)
-            .margin({ left: 8 })
-            .onClick(() => {
-              this.onExportBuiltin();
-            })
-          Button(this.exporting ? '导出中…' : '导出结果')
-            .fontSize(14)
-            .layoutWeight(1)
-            .margin({ left: 8 })
-            .enabled(!this.exporting)
-            .onClick(() => {
-              this.onExport();
-            })
+          FilterChips({
+            selected: this.filterIdx,
+            onSelect: (i: number): void => {
+              this.onFilterChange(i);
+            }
+          })
+        }
+        .width('calc(100% - 32vp)')
+        .justifyContent(FlexAlign.SpaceBetween)
+        .margin({ left: $r('app.float.space_page'), right: $r('app.float.space_page'), bottom: $r('app.float.space_group') })
+      }
+      .width('100%')
+    }
+    .columnStart(0)
+    .columnEnd(this.isWide ? 1 : 0)
+  }
+
+  @Builder
+  topBar() {
+    Row() {
+      Text($r('app.string.home_title'))
+        .fontSize($r('app.float.font_title'))
+        .fontWeight(FontWeight.Bold)
+        .fontColor($r('app.color.text_primary'))
+      Blank()
+      Text(this.assigneeLabel())
+        .fontSize(14)
+        .fontColor($r('app.color.primary'))
+        .backgroundColor($r('app.color.primary_soft'))
+        .padding({ left: 12, right: 12, top: 6, bottom: 6 })
+        .borderRadius($r('app.float.radius_pill'))
+        .onClick(() => {
+          this.goAssigneePicker();
+        })
+      IconButton({
+        icon: ' ⚙',
+        onTap: (): void => {
+          this.goSettings();
+        }
+      })
+        .margin({ left: 12 })
+    }
+    .width('100%')
+    .padding({ left: $r('app.float.space_page'), right: $r('app.float.space_page'), top: 8, bottom: 12 })
+    .backgroundColor($r('app.color.bar_bg'))
+    .backgroundBlurStyle(ThemeSpec.BAR_BLUR)
+  }
+
+  @Builder
+  contentArea() {
+    if (!this.hasData && !this.importing) {
+      EmptyView({
+        tip: this.showSwitchHint ? $r('app.string.assignee_empty_tip') : $r('app.string.empty_import_tip'),
+        onImport: (): void => {
+          this.onImport();
+        }
+      })
+    } else {
+      Grid() {
+        this.gridHeader()
+        LazyForEach(this.vm, (record: CallRecord, index: number) => {
+          this.personItem(record, index)
+        }, (record: CallRecord) => record.id.toString() + '_' + this.vm.version())
+      }
+      .columnsTemplate(this.isWide ? '1fr 1fr' : '1fr')
+      .columnsGap($r('app.float.space_between'))
+      .rowsGap($r('app.float.space_between'))
+      .padding({
+        left: $r('app.float.space_page'),
+        right: $r('app.float.space_page'),
+        top: 76,
+        bottom: 96
+      })
+      .width('100%')
+      .height('100%')
+      .scrollBar(BarState.Off)
+      .onReachEnd(() => {
+        this.vm.loadMore();
+      })
+    }
+  }
+
+  build() {
+    Navigation(this.pathStack) {
+      Stack({ alignContent: Alignment.Bottom }) {
+        Stack({ alignContent: Alignment.TopStart }) {
+          Column() {
+            this.contentArea()
+          }
+          .width('100%')
+          .height('100%')
+          .backgroundColor($r('app.color.bg'))
+
+          this.topBar()
         }
         .width('100%')
-        .padding({ left: 16, right: 16, top: 8, bottom: 12 })
+        .height('100%')
+
+        BottomActionBar({
+          importing: this.importing,
+          importStage: this.importStage,
+          exporting: this.exporting,
+          onImport: (): void => {
+            this.onImport();
+          },
+          onBuiltin: (): void => {
+            this.checkBuiltin(true);
+          },
+          onExportBuiltin: (): void => {
+            this.onExportBuiltin();
+          },
+          onExport: (): void => {
+            this.onExport();
+          }
+        })
+          .margin({ bottom: 12 })
       }
       .width('100%')
       .height('100%')

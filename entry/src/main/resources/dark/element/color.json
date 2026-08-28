@@ -3,6 +3,70 @@
     {
       "name": "start_window_background",
       "value": "#000000"
+    },
+    {
+      "name": "primary",
+      "value": "#4DA3FF"
+    },
+    {
+      "name": "primary_soft",
+      "value": "#1A3A5C"
+    },
+    {
+      "name": "bg",
+      "value": "#121316"
+    },
+    {
+      "name": "card",
+      "value": "#1E2025"
+    },
+    {
+      "name": "text_primary",
+      "value": "#E8EAED"
+    },
+    {
+      "name": "text_secondary",
+      "value": "#9AA0A8"
+    },
+    {
+      "name": "text_hint",
+      "value": "#6B7280"
+    },
+    {
+      "name": "success",
+      "value": "#2ED59A"
+    },
+    {
+      "name": "success_soft",
+      "value": "#123528"
+    },
+    {
+      "name": "warning",
+      "value": "#FFB84D"
+    },
+    {
+      "name": "warning_soft",
+      "value": "#3A2A16"
+    },
+    {
+      "name": "danger",
+      "value": "#FF6B52"
+    },
+    {
+      "name": "danger_soft",
+      "value": "#3A201C"
+    },
+    {
+      "name": "divider",
+      "value": "#14FFFFFF"
+    },
+    {
+      "name": "bar_bg",
+      "value": "#CC1E2025"
+    },
+    {
+      "name": "shadow",
+      "value": "#0D4DA3FF"
     }
   ]
 }

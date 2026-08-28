@@ -3,6 +3,86 @@
     {
       "name": "page_text_font_size",
       "value": "50fp"
+    },
+    {
+      "name": "radius_card",
+      "value": "24vp"
+    },
+    {
+      "name": "radius_item",
+      "value": "20vp"
+    },
+    {
+      "name": "radius_pill",
+      "value": "999vp"
+    },
+    {
+      "name": "radius_btn",
+      "value": "16vp"
+    },
+    {
+      "name": "space_page",
+      "value": "16vp"
+    },
+    {
+      "name": "space_card_inner",
+      "value": "20vp"
+    },
+    {
+      "name": "space_between",
+      "value": "12vp"
+    },
+    {
+      "name": "space_group",
+      "value": "20vp"
+    },
+    {
+      "name": "font_display",
+      "value": "40fp"
+    },
+    {
+      "name": "font_title",
+      "value": "28fp"
+    },
+    {
+      "name": "font_headline",
+      "value": "22fp"
+    },
+    {
+      "name": "font_body",
+      "value": "16fp"
+    },
+    {
+      "name": "font_caption",
+      "value": "13fp"
+    },
+    {
+      "name": "icon_btn_size",
+      "value": "48vp"
+    },
+    {
+      "name": "dial_btn_size",
+      "value": "40vp"
+    },
+    {
+      "name": "pill_height",
+      "value": "28vp"
+    },
+    {
+      "name": "chip_height",
+      "value": "36vp"
+    },
+    {
+      "name": "ring_size",
+      "value": "96vp"
+    },
+    {
+      "name": "ring_width",
+      "value": "8vp"
+    },
+    {
+      "name": "action_bar_height",
+      "value": "64vp"
     }
   ]
 }

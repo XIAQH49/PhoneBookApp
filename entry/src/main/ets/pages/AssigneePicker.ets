@@ -1,10 +1,13 @@
 import { CallListDao } from '../database/CallListDao';
 import { ConfigDao } from '../database/ConfigDao';
 import { Constants } from '../common/Constants';
+import { ThemeSpec } from '../common/ThemeSpec';
+import { IconButton } from '../components/IconButton';
 
 /**
- * 责任人选择页（FR-3 / R-6）：搜索、切换、记住上次选择。
- * 列表仅展示责任人名字，选中后写配置并返回（宿主 Index 经 onPop 回调自动重载）。
+ * 责任人选择页（FR-3 / R-6；v0.7 UI 重构，docs/14 4.4）：
+ * 搜索胶囊 + 卡片列表行（当前项主色对勾）；行点击 → 写配置 → pop 返回
+ * （宿主 Index 经 onPop 回调自动重载，链路与旧版一致）。
  *
  * M2-2：router → Navigation 迁移。本页为 NavDestination；
  * 返回统一 pop(带结果) 并拦截系统返回，保证宿主 Index 的 onPop 回调触发。
@@ -48,58 +51,89 @@ export struct AssigneePicker {
   build() {
     NavDestination() {
       Column() {
+        // 顶部栏：40vp 圆形返回 + 居中标题 + 右侧占位（保持对称）
         Row() {
-          Text('← 返回')
-            .fontSize(16)
-            .onClick(() => {
+          IconButton({
+            icon: '←',
+            onTap: (): void => {
               this.popBack();
-            })
+            }
+          })
           Blank()
           Text($r('app.string.assignee_picker_title'))
             .fontSize(18)
             .fontWeight(FontWeight.Bold)
+            .fontColor($r('app.color.text_primary'))
           Blank()
-          Text('    ')
+          Row()
+            .width($r('app.float.icon_btn_size'))
+            .height($r('app.float.icon_btn_size'))
         }
         .width('100%')
-        .padding({ left: 16, right: 16, top: 12, bottom: 8 })
+        .padding({ left: $r('app.float.space_page'), right: $r('app.float.space_page'), top: 8, bottom: 8 })
 
-        TextInput({ placeholder: '搜索责任人', text: this.keyword })
-          .height(40)
-          .margin({ left: 16, right: 16, bottom: 8 })
-          .onChange((v: string) => {
-            this.keyword = v;
-          })
+        // 搜索胶囊（全圆）
+        Row() {
+          Text('🔍')
+            .fontSize(16)
+            .margin({ left: 14 })
+          TextInput({ placeholder: $r('app.string.search_assignee_hint'), text: this.keyword })
+            .fontSize(14)
+            .fontColor($r('app.color.text_primary'))
+            .backgroundColor(Color.Transparent)
+            .height(44)
+            .layoutWeight(1)
+            .margin({ left: 8, right: 12 })
+            .onChange((v: string) => {
+              this.keyword = v;
+            })
+        }
+        .height(44)
+        .backgroundColor($r('app.color.card'))
+        .borderRadius($r('app.float.radius_pill'))
+        .margin({ left: $r('app.float.space_page'), right: $r('app.float.space_page'), bottom: $r('app.float.space_between') })
 
         List() {
           ForEach(this.filteredList(), (a: string) => {
             ListItem() {
               Row() {
                 Text(a === Constants.UNASSIGNED ? '未分配' : a)
-                  .fontSize(16)
+                  .fontSize($r('app.float.font_body'))
+                  .fontColor($r('app.color.text_primary'))
                   .layoutWeight(1)
                 if (a === this.current) {
                   Text('✓')
-                    .fontSize(16)
-                    .fontColor('#007DFF')
+                    .fontSize(18)
+                    .fontWeight(FontWeight.Bold)
+                    .fontColor($r('app.color.primary'))
                 }
               }
               .width('100%')
-              .padding({ left: 16, right: 16, top: 14, bottom: 14 })
+              .padding({ left: $r('app.float.space_card_inner'), right: $r('app.float.space_card_inner'), top: 16, bottom: 16 })
+              .borderRadius($r('app.float.radius_item'))
+              .backgroundColor($r('app.color.card'))
+              .shadow({
+                radius: ThemeSpec.SHADOW_CARD_RADIUS,
+                color: ThemeSpec.SHADOW_CARD_COLOR,
+                offsetX: 0,
+                offsetY: ThemeSpec.SHADOW_CARD_OFFSET_Y
+              })
               .onClick(() => {
                 ConfigDao.setLastAssignee(a).then(() => {
                   this.popBack();
                 });
               })
             }
+            .margin({ left: $r('app.float.space_page'), right: $r('app.float.space_page'), top: 6, bottom: 6 })
           }, (a: string) => a)
         }
         .layoutWeight(1)
         .width('100%')
-        .divider({ strokeWidth: 0.5, color: '#F1F3F5' })
+        .scrollBar(BarState.Off)
       }
       .width('100%')
       .height('100%')
+      .backgroundColor($r('app.color.bg'))
     }
     .hideTitleBar(true)
     .onReady((ctx: NavDestinationContext) => {
