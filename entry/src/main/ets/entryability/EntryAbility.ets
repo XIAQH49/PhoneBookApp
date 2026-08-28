@@ -33,8 +33,9 @@ export default class EntryAbility extends UIAbility {
 
   /**
    * 系统栏融合（docs/16 6.2，无白边/黑边）：
-   * 状态栏/导航栏底色固定为页面背景同色（浅 #F4F6F8 / 深 #101214），图标颜色随深浅色；
-   * 内容层保持系统安全区避让（ArkUI 默认），绝不重叠——expandSafeArea 在 Navigation 嵌套下不生效（真机实测）。
+   * 仅设置状态栏（底色=页面同色浅 #F4F6F8/深 #101214 + 图标随深浅色）；
+   * 不设置导航栏属性（真机实测：设置 navigationBarColor 会强制弹出底部导航条且颜色不生效，反而产生白边）；
+   * 内容层保持系统安全区避让（ArkUI 默认），绝不重叠。
    */
   private async setImmersive(stage: window.WindowStage): Promise<void> {
     try {
@@ -42,9 +43,7 @@ export default class EntryAbility extends UIAbility {
       const dark: boolean = this.context.config.colorMode === ConfigurationConstant.ColorMode.COLOR_MODE_DARK;
       const props: window.SystemBarProperties = {
         statusBarColor: dark ? BAR_BG_DARK : BAR_BG_LIGHT,
-        navigationBarColor: dark ? BAR_BG_DARK : BAR_BG_LIGHT,
-        statusBarContentColor: dark ? '#FFFFFF' : '#000000',
-        navigationBarContentColor: dark ? '#FFFFFF' : '#000000'
+        statusBarContentColor: dark ? '#FFFFFF' : '#000000'
       };
       await win.setWindowSystemBarProperties(props);
     } catch (err) {
