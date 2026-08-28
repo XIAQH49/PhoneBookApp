@@ -1,5 +1,4 @@
 import { common } from '@kit.AbilityKit';
-import { mediaquery } from '@kit.ArkUI';
 import { MainViewModel } from '../viewmodel/MainViewModel';
 import { CallRecord, CountResult } from '../model/CallRecord';
 import { Constants } from '../common/Constants';
@@ -16,7 +15,6 @@ import { DbHelper } from '../database/DbHelper';
 import { CallListDao } from '../database/CallListDao';
 import { ThemeSpec } from '../common/ThemeSpec';
 import { StatCard } from '../components/StatCard';
-import { FilterChips } from '../components/FilterChips';
 import { EmptyView } from '../components/EmptyView';
 import { PersonCard } from '../components/PersonCard';
 import { BottomActionBar } from '../components/BottomActionBar';
@@ -34,14 +32,14 @@ const FILTER_UNCALLED: number = 0;
 const FILTER_CALLED: number = 1;
 
 /**
- * 主列表页（FR-3 / FR-4 / FR-6；docs/15 ChatGPT 整理版 3.1/6.3 主依据）：
- * Header 72vp（大标题 32fp + 责任人胶囊 + 圆形设置钮，不做毛玻璃）+ 统计大卡（唯一最高等级卡）+
- * 搜索胶囊 + 计数筛选胶囊 + PersonCard 双列网格（≥360vp 双列、<360vp 单列、平板 maxWidth 1040vp）+
- * 底部悬浮毛玻璃工具台（76vp，不占满全宽）；底栏预留 bottomPadding 132vp（6.4）。
+ * 主列表页（FR-3 / FR-4 / FR-6；v0.7 第二轮视觉反馈修订）：
+ * - 顶栏毛玻璃（bar_bg + COMPONENT_ULTRA_THICK，随内容滚动悬浮，反馈#7）；
+ * - 左上角：状态筛选下拉菜单（全部 ▾，菜单带计数）+ 搜索按钮（点开内联搜索栏，反馈#2/#3）；
+ * - 责任人/设置入口为无背景纯文本/图标（反馈#4）；
+ * - PersonCard 固定单列紧凑卡（反馈#1/#8）；底栏 60vp 收窄、无按压底色、光感 high 档（反馈#5）；
+ * - 沉浸式全屏（EntryAbility setWindowLayoutFullScreen，反馈#6）；底栏预留 132vp。
  *
- * M2-2：router → Navigation 迁移。本页为导航宿主：子页（ContactDetail/Settings/
- * AssigneePicker）均为 NavDestination，经 NavPathStack.pushPathByName 压栈；
- * 子页 pop 携带结果触发 onPop 回调 → onSubPageReturn 重载数据。
+ * M2-2：router → Navigation 迁移。本页为导航宿主；子页 pop 携带结果触发 onPop 回调。
  */
 @Entry
 @Component
@@ -56,6 +54,7 @@ struct Index {
   @State hasData: boolean = false;
   @State showSwitchHint: boolean = false;
   @State searchText: string = '';
+  @State searchOpen: boolean = false;
   @State filterIdx: number = 0;
   @State importing: boolean = false;
   @State importStage: string = '';
@@ -63,7 +62,6 @@ struct Index {
   @State showNumberSheet: boolean = false;
   @State sheetNumbers: string[] = [];
   @State sheetName: string = '';
-  @State isWide: boolean = false;
   private sheetRecord: CallRecord = new CallRecord();
   private confirmName: string = '';
   private confirmNumber: string = '';
@@ -74,17 +72,6 @@ struct Index {
   private builtinChecked: boolean = false;
 
   aboutToAppear(): void {
-    // 唯一硬断点（docs/15 十-5：<360vp→1 列、>=360vp→2 列；SGT-AL10≈391vp→双列）
-    try {
-      const listener: mediaquery.MediaQueryListener = this.getUIContext().getMediaQuery()
-        .matchMediaSync('(min-width: ' + ThemeSpec.BREAKPOINT_TWO_COL_VP + 'vp)');
-      this.isWide = listener.matches;
-      listener.on('change', (m: mediaquery.MediaQueryResult) => {
-        this.isWide = m.matches;
-      });
-    } catch (e) {
-      this.isWide = true;
-    }
     this.initPage();
   }
 
@@ -228,6 +215,17 @@ struct Index {
         this.syncAll();
       });
     }, 300);
+  }
+
+  /** 收起搜索：清空关键字并恢复全量列表 */
+  closeSearch(): void {
+    this.searchOpen = false;
+    if (this.searchText !== '') {
+      this.searchText = '';
+      this.vm.setKeyword('').then(() => {
+        this.syncAll();
+      });
+    }
   }
 
   // ---- 标记 ----
@@ -461,6 +459,42 @@ struct Index {
     return (this.assigneeName === '' ? '未分配' : this.assigneeName) + ' ⌄';
   }
 
+  private filterLabel(): string {
+    if (this.filterIdx === 1) {
+      return '未打';
+    }
+    if (this.filterIdx === 2) {
+      return '已打';
+    }
+    return '全部';
+  }
+
+  /** 筛选下拉菜单（反馈#2：左上角下拉，菜单带计数） */
+  private filterMenu(): MenuElement[] {
+    const uncalled: number = this.statTotal - this.statCalled;
+    const items: MenuElement[] = [
+      {
+        value: (this.filterIdx === 0 ? '✓ ' : '   ') + '全部 ' + this.statTotal,
+        action: (): void => {
+          this.onFilterChange(0);
+        }
+      },
+      {
+        value: (this.filterIdx === 1 ? '✓ ' : '   ') + '未打 ' + uncalled,
+        action: (): void => {
+          this.onFilterChange(1);
+        }
+      },
+      {
+        value: (this.filterIdx === 2 ? '✓ ' : '   ') + '已打 ' + this.statCalled,
+        action: (): void => {
+          this.onFilterChange(2);
+        }
+      }
+    ];
+    return items;
+  }
+
   private phoneText(record: CallRecord): string {
     return record.phoneNumbers.length > 1 ? '手机 ×' + record.phoneNumbers.length : record.phoneRaw;
   }
@@ -498,8 +532,62 @@ struct Index {
           allCalled: this.allCalled,
           assignee: this.assigneeName
         })
+      }
+      .width('100%')
+      .margin({ bottom: $r('app.float.space_group') })
+    }
+  }
 
-        // 搜索胶囊（radius_search 22vp）
+  /** 毛玻璃顶栏（反馈#7）：标题 + 筛选下拉 + 搜索按钮 + 责任人 + 设置 */
+  @Builder
+  topBar() {
+    Column() {
+      Row() {
+        Text($r('app.string.home_title'))
+          .fontSize($r('app.float.font_title'))
+          .fontWeight(FontWeight.Bold)
+          .fontColor($r('app.color.text_primary'))
+        // 左上角：筛选下拉 + 搜索按钮（反馈#2/#3）
+        Text(this.filterLabel() + ' ▾')
+          .fontSize($r('app.float.font_body'))
+          .fontColor($r('app.color.primary'))
+          .padding({ left: 6, top: 8, bottom: 8 })
+          .margin({ left: 14 })
+          .bindMenu(this.filterMenu())
+        IconButton({
+          icon: '🔍',
+          btnSize: 36,
+          fontSize: 20,
+          onTap: (): void => {
+            this.searchOpen = !this.searchOpen;
+            if (!this.searchOpen) {
+              this.closeSearch();
+            }
+          }
+        })
+          .margin({ left: 4 })
+        Blank()
+        Text(this.assigneeLabel())
+          .fontSize($r('app.float.font_body'))
+          .fontColor($r('app.color.primary'))
+          .padding({ left: 8, top: 8, bottom: 8 })
+          .onClick(() => {
+            this.goAssigneePicker();
+          })
+        IconButton({
+          icon: ' ⚙',
+          onTap: (): void => {
+            this.goSettings();
+          }
+        })
+          .margin({ left: 8 })
+      }
+      .width('100%')
+      .height($r('app.float.header_height'))
+      .alignItems(VerticalAlign.Center)
+
+      // 搜索展开（内联，反馈#3）
+      if (this.searchOpen) {
         Row() {
           Text('🔍')
             .fontSize(16)
@@ -510,68 +598,31 @@ struct Index {
             .backgroundColor(Color.Transparent)
             .height($r('app.float.search_height'))
             .layoutWeight(1)
-            .margin({ left: 8, right: 14 })
+            .margin({ left: 8, right: 8 })
             .onChange((v: string) => {
               this.onSearchChange(v);
             })
+          Text('✕')
+            .fontSize(18)
+            .fontColor($r('app.color.text_secondary'))
+            .padding(8)
+            .onClick(() => {
+              this.closeSearch();
+            })
         }
+        .width('100%')
         .height($r('app.float.search_height'))
         .backgroundColor($r('app.color.surface_card'))
         .border({ width: 1, color: $r('app.color.divider') })
         .borderRadius($r('app.float.radius_search'))
-        .margin({ top: $r('app.float.space_between'), bottom: $r('app.float.space_between') })
-
-        Row() {
-          FilterChips({
-            selected: this.filterIdx,
-            total: this.statTotal,
-            called: this.statCalled,
-            onSelect: (i: number): void => {
-              this.onFilterChange(i);
-            }
-          })
-        }
-        .width('100%')
-        .margin({ bottom: $r('app.float.space_group') })
+        .margin({ top: 4, bottom: 12 })
       }
-      .width('100%')
-    }
-    .columnStart(0)
-    .columnEnd(this.isWide ? 1 : 0)
-  }
-
-  @Builder
-  topBar() {
-    Row() {
-      Text($r('app.string.home_title'))
-        .fontSize($r('app.float.font_title'))
-        .fontWeight(FontWeight.Bold)
-        .fontColor($r('app.color.text_primary'))
-      Blank()
-      Text(this.assigneeLabel())
-        .fontSize($r('app.float.font_body'))
-        .fontColor($r('app.color.primary'))
-        .backgroundColor($r('app.color.primary_soft'))
-        .height(44)
-        .padding({ left: 16, right: 16 })
-        .borderRadius(22)
-        .textAlign(TextAlign.Center)
-        .onClick(() => {
-          this.goAssigneePicker();
-        })
-      IconButton({
-        icon: ' ⚙',
-        onTap: (): void => {
-          this.goSettings();
-        }
-      })
-        .margin({ left: 12 })
     }
     .width('100%')
     .constraintSize({ maxWidth: ThemeSpec.CONTENT_MAX_WIDTH_VP })
-    .height($r('app.float.header_height'))
     .padding({ left: $r('app.float.space_page'), right: $r('app.float.space_page') })
-    .backgroundColor($r('app.color.bg_page'))
+    .backgroundColor($r('app.color.bar_bg'))
+    .backgroundBlurStyle(ThemeSpec.BAR_BLUR)
   }
 
   @Builder
@@ -590,15 +641,14 @@ struct Index {
           this.personItem(record, index)
         }, (record: CallRecord) => record.id.toString() + '_' + this.vm.version())
       }
-      .columnsTemplate(this.isWide ? '1fr 1fr' : '1fr')
-      .columnsGap($r('app.float.space_between'))
+      .columnsTemplate('1fr')
       .rowsGap($r('app.float.space_between'))
       .cachedCount(8)
       .constraintSize({ maxWidth: ThemeSpec.CONTENT_MAX_WIDTH_VP })
       .padding({
         left: $r('app.float.space_page'),
         right: $r('app.float.space_page'),
-        top: $r('app.float.header_height'),
+        top: this.searchOpen ? 144 : 80,
         bottom: $r('app.float.grid_bottom_padding')
       })
       .width('100%')

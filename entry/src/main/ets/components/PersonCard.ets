@@ -1,15 +1,14 @@
 import { MotionSpec } from '../common/MotionSpec';
 import { MaterialRole } from '../common/ThemeSpec';
 import { StatusPill } from './StatusPill';
-import { IconButton } from './IconButton';
 import { SemanticMaterialSurface } from './SemanticMaterialSurface';
 
 /**
- * 名单卡片（docs/15 二/3.1：核心组件，双列高 190vp、padding 20vp、radius 24vp）：
- * 姓名 24fp/Bold + 右上 StatusPill；号码 18fp/Medium；工号 14fp + 右下拨号 IconButton 50×50（primary 底白 icon）。
- * 卡片空白点击进详情、拨号只拨号（校对#5：独立 onClick，不用 stopPropagation）。
- * 语义材质 = normal-surface（别做清单1：不给每张卡加发光）；按压/阴影由 SemanticMaterialSurface 渲染。
- * 5.1 入场：opacity 0→1 / translateY 18→0 / scale 0.985→1，springMotion(0.42,0.84)，错峰 i*35ms（≤280ms）。
+ * 名单卡片（v0.7 视觉反馈 #1/#8 修订版）：
+ * **固定单列**、紧凑高度（min 132vp，不再双列 190vp——双列下姓名被截断）；
+ * 姓名 24fp/Bold（单列全宽显示）+ 右上 StatusPill；号码 18fp；工号 14fp + **无背景拨号图标**（纯 📞 primary）。
+ * 卡片空白点击进详情、拨号只拨号（独立 onClick）。
+ * 语义材质 = normal-surface（不每卡发光）；入场淡入+上移+回弹错峰。
  */
 @Component
 export struct PersonCard {
@@ -64,7 +63,7 @@ export struct PersonCard {
         .maxLines(1)
         .textOverflow({ overflow: TextOverflow.Ellipsis })
         .width('100%')
-        .margin({ top: 10 })
+        .margin({ top: 8 })
 
       Row() {
         Text(this.empNo !== '' ? '工号 ' + this.empNo : '')
@@ -73,21 +72,22 @@ export struct PersonCard {
           .maxLines(1)
           .textOverflow({ overflow: TextOverflow.Ellipsis })
           .layoutWeight(1)
-        IconButton({
-          icon: '📞',
-          filled: true,
-          onTap: (): void => {
+        // 无背景拨号图标（视觉反馈 #8）
+        Text('📞')
+          .fontSize(24)
+          .fontColor($r('app.color.primary'))
+          .padding({ left: 12, top: 4, bottom: 4 })
+          .onClick(() => {
             this.onCall();
-          }
-        })
+          })
       }
       .width('100%')
-      .margin({ top: 12 })
+      .margin({ top: 6 })
       .alignItems(VerticalAlign.Center)
     }
     .width('100%')
-    .height($r('app.float.person_card_height'))
-    .padding($r('app.float.space_card_inner'))
+    .constraintSize({ minHeight: $r('app.float.person_card_height') })
+    .padding(16)
     .justifyContent(FlexAlign.SpaceBetween)
   }
 

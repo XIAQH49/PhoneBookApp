@@ -106,7 +106,7 @@
     },
     {
       "name": "action_bar_height",
-      "value": "76vp"
+      "value": "60vp"
     },
     {
       "name": "search_height",
@@ -122,7 +122,7 @@
     },
     {
       "name": "person_card_height",
-      "value": "190vp"
+      "value": "132vp"
     },
     {
       "name": "content_max_width",

@@ -46,8 +46,6 @@ export struct BottomActionBar {
     .justifyContent(FlexAlign.Center)
     .layoutWeight(1)
     .height('100%')
-    .borderRadius($r('app.float.radius_btn'))
-    .backgroundColor(this.pressedIdx === 0 ? $r('app.color.primary_soft') : Color.Transparent)
     .scale({
       x: this.pressedIdx === 0 ? MotionSpec.PRESS_SCALE_BTN : 1,
       y: this.pressedIdx === 0 ? MotionSpec.PRESS_SCALE_BTN : 1
@@ -90,8 +88,6 @@ export struct BottomActionBar {
     .justifyContent(FlexAlign.Center)
     .layoutWeight(1)
     .height('100%')
-    .borderRadius($r('app.float.radius_btn'))
-    .backgroundColor(this.pressedIdx === 1 ? $r('app.color.primary_soft') : Color.Transparent)
     .scale({
       x: this.pressedIdx === 1 ? MotionSpec.PRESS_SCALE_BTN : 1,
       y: this.pressedIdx === 1 ? MotionSpec.PRESS_SCALE_BTN : 1
@@ -128,8 +124,6 @@ export struct BottomActionBar {
     .justifyContent(FlexAlign.Center)
     .layoutWeight(1)
     .height('100%')
-    .borderRadius($r('app.float.radius_btn'))
-    .backgroundColor(this.pressedIdx === 2 ? $r('app.color.primary_soft') : Color.Transparent)
     .scale({
       x: this.pressedIdx === 2 ? MotionSpec.PRESS_SCALE_BTN : 1,
       y: this.pressedIdx === 2 ? MotionSpec.PRESS_SCALE_BTN : 1
@@ -166,8 +160,6 @@ export struct BottomActionBar {
     .justifyContent(FlexAlign.Center)
     .layoutWeight(1)
     .height('100%')
-    .borderRadius($r('app.float.radius_btn'))
-    .backgroundColor(this.pressedIdx === 3 ? $r('app.color.primary_soft') : Color.Transparent)
     .scale({
       x: this.pressedIdx === 3 ? MotionSpec.PRESS_SCALE_BTN : 1,
       y: this.pressedIdx === 3 ? MotionSpec.PRESS_SCALE_BTN : 1

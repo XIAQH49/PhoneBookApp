@@ -67,17 +67,16 @@ export class ThemeSpec {
   /** 浮层描边（docs/15 四-floating-tool：border rgba(255,255,255,0.55)） */
   static readonly FLOATING_BORDER_COLOR: string = 'rgba(255,255,255,0.55)';
 
-  // ---- 布局（docs/15 十-别做清单5：唯一硬断点；七-尺寸总表）----
-  static readonly BREAKPOINT_TWO_COL_VP: number = 360;
+  // ---- 布局（docs/15 七-尺寸总表）----
   static readonly CONTENT_MAX_WIDTH_VP: number = 1040;
-  static readonly BAR_MAX_WIDTH_VP: number = 720;
+  static readonly BAR_MAX_WIDTH_VP: number = 560;
 
   // ---- 沉浸光感（docs/15 四 + docs/14 8.3）----
   /**
    * 档位覆盖开关：'' = 自动；'high' / 'middle' / 'low' 强制指定。
-   * 首版自动档 = middle（docs/14 8.5：真机看效果后再调档）。
+   * v0.7 视觉反馈 #5：沉浸光感拉满 → 固定 high（滤镜/阴影/位移/缩放全开）。
    */
-  static readonly MATERIAL_LEVEL_OVERRIDE: string = '';
+  static readonly MATERIAL_LEVEL_OVERRIDE: string = 'high';
 
   /** 三档完整方案参数（docs/14 8.3） */
   static levelParams(level: MaterialLevel): MaterialLevelParams {
