@@ -126,10 +126,12 @@ export struct AssigneePicker {
               ListItem() {
                 Row() {
                   // 选中指示条（selection 语义：左 8vp 蓝色指示条）
+                  // 注意（真机实测坑位）：height('60%') 在 ListItem 父高度未确定时解析为
+                  // List 可用空间的 60%（选中行被撑成 4.8 倍高）→ 固定 24vp + 行内垂直居中
                   if (a === this.current) {
                     Row()
                       .width(8)
-                      .height('60%')
+                      .height(24)
                       .borderRadius(4)
                       .backgroundColor($r('app.color.primary'))
                       .margin({ right: 12 })
