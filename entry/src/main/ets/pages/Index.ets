@@ -578,18 +578,9 @@ struct Index {
   gridHeader() {
     GridItem() {
       Column() {
-        StatCard({
-          total: this.statTotal,
-          called: this.statCalled,
-          allTotal: this.allTotal,
-          allCalled: this.allCalled,
-          assignee: this.assigneeName,
-          onAssigneeTap: (): void => {
-            this.goAssigneePicker();
-          }
-        })
-
-        // 搜索行：点顶栏🔍滑入（docs/16 一-3），圆角 22vp
+        // 搜索行：点顶栏🔍滑入（docs/16 一-3），圆角 22vp；
+        // 位于 顶栏 与 统计卡 之间（修正：搜索框不再挤在统计卡与名单卡之间，
+        // 顶栏下不再出现空白间隙——用户反馈 2026-08-30）
         if (this.searchOpen) {
           Row() {
             Text('🔍')
@@ -621,6 +612,17 @@ struct Index {
           .margin({ top: $r('app.float.space_between'), bottom: $r('app.float.space_between') })
           .transition(TransitionEffect.OPACITY.combine(TransitionEffect.translate({ y: -12 })))
         }
+
+        StatCard({
+          total: this.statTotal,
+          called: this.statCalled,
+          allTotal: this.allTotal,
+          allCalled: this.allCalled,
+          assignee: this.assigneeName,
+          onAssigneeTap: (): void => {
+            this.goAssigneePicker();
+          }
+        })
       }
       .width('100%')
       .margin({ bottom: $r('app.float.space_group') })
@@ -751,7 +753,7 @@ struct Index {
       .padding({
         left: $r('app.float.space_page'),
         right: $r('app.float.space_page'),
-        top: 72 + 8 + (this.searchOpen ? 64 : 0),
+        top: 72 + 8,
         bottom: 48
       })
       .width('100%')

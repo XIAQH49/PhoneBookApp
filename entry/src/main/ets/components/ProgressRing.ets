@@ -1,8 +1,10 @@
 import { MotionSpec } from '../common/MotionSpec';
 
 /**
- * 完成率圆环（docs/15 二-组件规格/5.4）：直径 156vp、环宽 12vp；
- * 环底 ring_track、进度 primary；中心 Text(0%) 32fp/Bold + Text(完成率) 14fp；
+ * 完成率圆环（docs/15 二-组件规格/5.4；2026-08-30：直径 156→132vp——64fp 大数字行
+ * （数字+分母）宽度超过 Column 分配宽度，分母 "/226" 尾部被圆环遮盖（真机实测
+ * 分母右缘 x670 > 圆环左缘 x632，重叠 38px）；132vp 后 Column 得余量 46px，不再重叠）：
+ * 环宽 12vp；环底 ring_track、进度 primary；中心 Text(0%) 32fp/Bold + Text(完成率) 14fp；
  * animateTo(springMotion(0.65,0.86)) 同一状态变量驱动进度（0%→60% = 0°→216°），不做整圈旋转动画。
  */
 @Component

@@ -18,6 +18,10 @@ if (-not (Test-Path $hdc)) { Write-Host "[error] hdc not found: $hdc"; exit 1 }
 Set-Location $root
 $env:DEVECO_SDK_HOME = $sdk
 $env:JAVA_HOME = $jbr
+# 关键：系统 PATH 上有 Oracle Java 1.8（javapath）会抢占签名工具（需要对 .p12 的新格式解析），
+# 必须把 DevEco JBR(bin) 前置到 PATH——否则 SignHap 报
+# "parseAlgParameters failed: ObjectIdentifier() -- data isn't an object ID (tag = 48)"
+$env:PATH = "$jbr\bin;$env:PATH"
 
 Write-Host '== 1/3 构建 (assembleHap) =='
 $out = & $node $hvigor assembleHap --mode module -p product=default -p buildMode=debug --no-daemon 2>&1 | Out-String
