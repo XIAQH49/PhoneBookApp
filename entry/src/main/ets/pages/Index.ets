@@ -713,8 +713,9 @@ struct Index {
     if (!this.hasData && !this.importing) {
       EmptyView({
         tip: this.showSwitchHint ? $r('app.string.assignee_empty_tip') : $r('app.string.empty_import_tip'),
-        onImport: (): void => {
-          this.onImport();
+        switchHint: this.showSwitchHint,
+        onSwitch: (): void => {
+          this.goAssigneePicker();
         }
       })
     } else {

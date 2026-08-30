@@ -74,15 +74,15 @@
     },
     {
       "name": "empty_import_tip",
-      "value": "尚未导入名单，点击下方按钮开始"
+      "value": "尚未导入名单，请使用底部工具栏「＋ 导入名单」"
     },
     {
       "name": "assignee_empty_tip",
-      "value": "当前责任人名下暂无数据，请点击右上角切换责任人"
+      "value": "当前责任人名下暂无数据，请切换责任人后查看"
     },
     {
-      "name": "empty_import_action",
-      "value": "导入名单"
+      "name": "assignee_switch_action",
+      "value": "切换责任人"
     },
     {
       "name": "call",
