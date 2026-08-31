@@ -1,4 +1,4 @@
-/node_modules
+ï»¿/node_modules
 /oh_modules
 /local.properties
 /.idea
@@ -14,10 +14,11 @@
 # å†…ç½®åå•æ–‡ä»¶éšæ¯æ¬¡åå•æ›´æ–°è€Œå˜åŒ–ï¼ˆæœ¬åœ°æ„å»ºä½¿ç”¨ï¼Œä¸è¿›ç‰ˆæœ¬åº“ï¼‰
 entry/src/main/resources/rawfile/åå•.xlsx
 entry/src/main/resources/rawfile/åå•.csv
-# M2 Õæ»ú»á»°ÁÙÊ±²úÎï£¨½ØÍ¼/²¼¾Ö/ÊµÊ±ÈÕÖ¾£©
+entry/src/main/resources/rawfile/åå•_åŸå§‹_*
+# M2 ï¿½ï¿½ï¿½ï¿½á»°ï¿½ï¿½Ê±ï¿½ï¿½ï¿½ï£¨ï¿½ï¿½Í¼/ï¿½ï¿½ï¿½ï¿½/ÊµÊ±ï¿½ï¿½Ö¾ï¿½ï¿½
 m2_*.jpeg
 m2_*.log
 *_layout.json
 
 m2_reg_*.json
-samples/Ãûµ¥_±¸·İ_*
+samples/ï¿½ï¿½ï¿½ï¿½_ï¿½ï¿½ï¿½ï¿½_*

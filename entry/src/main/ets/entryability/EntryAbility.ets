@@ -3,6 +3,8 @@ import { hilog } from '@kit.PerformanceAnalysisKit';
 import { window } from '@kit.ArkUI';
 import { DbHelper } from '../database/DbHelper';
 import { ThemeSpec } from '../common/ThemeSpec';
+import { IntentImportService } from '../service/IntentImportService';
+import type { IntentImportResult } from '../service/IntentImportService';
 
 const DOMAIN = 0x0000;
 
@@ -20,6 +22,7 @@ export default class EntryAbility extends UIAbility {
       hilog.error(DOMAIN, 'testTag', 'Failed to set colorMode. Cause: %{public}s', JSON.stringify(err));
     }
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onCreate');
+    hilog.info(DOMAIN, 'PhoneBook', 'onCreate want: %{public}s', JSON.stringify(want));
     // 官方沉浸光感门控（API 26 uiMaterial.getMaterialInfo）：系统关闭沉浸时应用降级（页面加载前调用）
     ThemeSpec.initImmersiveGate();
     // 初始化本地数据库（幂等），页面加载前完成
@@ -27,6 +30,15 @@ export default class EntryAbility extends UIAbility {
       hilog.info(DOMAIN, 'PhoneBook', 'Database ready');
     }).catch((err: Error) => {
       hilog.error(DOMAIN, 'PhoneBook', 'Database init failed: %{public}s', err.message);
+    });
+    // v0.6 PC 意图直达导入：冷启动路径（payload 参数存在时接收）
+    IntentImportService.handleWant(this.context, want).then((r: IntentImportResult): void => {
+      if (r.message !== '') {
+        hilog.info(DOMAIN, 'PhoneBook', 'intent(cold) result: ok=%{public}s msg=%{public}s total=%{public}d',
+          r.success, r.message, r.total);
+      }
+    }).catch((e: Error) => {
+      hilog.error(DOMAIN, 'PhoneBook', 'intent(cold) failed: %{public}s', e.message);
     });
   }
 
@@ -68,6 +80,22 @@ export default class EntryAbility extends UIAbility {
       this.setImmersive(windowStage).catch((e: Error) => {
         hilog.error(DOMAIN, 'PhoneBook', 'set system bar init failed: %{public}s', e.message);
       });
+    });
+  }
+
+  /**
+   * v0.6 PC 意图直达导入：热启动路径。
+   * 设备默认为 singleton 启动模式，App 已在前台时 aa start 回调本方法（不重建页面）。
+   */
+  onNewWant(want: Want, launchParam: AbilityConstant.LaunchParam): void {
+    hilog.info(DOMAIN, 'PhoneBook', 'onNewWant: %{public}s', JSON.stringify(want));
+    IntentImportService.handleWant(this.context, want).then((r: IntentImportResult): void => {
+      if (r.message !== '') {
+        hilog.info(DOMAIN, 'PhoneBook', 'intent(hot) result: ok=%{public}s msg=%{public}s total=%{public}d',
+          r.success, r.message, r.total);
+      }
+    }).catch((e: Error) => {
+      hilog.error(DOMAIN, 'PhoneBook', 'intent(hot) failed: %{public}s', e.message);
     });
   }
 

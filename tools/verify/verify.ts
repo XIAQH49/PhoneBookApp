@@ -501,4 +501,98 @@ check('sample_m3_20rows_status_columns', () => {
   assert.strictEqual(intentionTrue, 6, 'i%3==0 行有意向（i=3..18 共 6 行）');
 });
 
+console.log('[verify] v0.6 PC 意图直达导入（intent 载荷 → CSV 重建 → 合并管线）');
+// 与 APP 端 IntentImportService / PC 端 sender.ts 同构的载荷构造与重建逻辑
+interface IntentPayloadLite {
+  action: string;
+  transferId: string;
+  batch: number;
+  total: number;
+  headers: string[];
+  rows: string[][];
+}
+
+function buildPayloads(headers: string[], rows: string[][], batchSize: number): IntentPayloadLite[] {
+  const out: IntentPayloadLite[] = [];
+  const total: number = Math.ceil(rows.length / batchSize);
+  for (let b = 1; b <= total; b++) {
+    const start: number = (b - 1) * batchSize;
+    out.push({
+      action: 'import_rows',
+      transferId: '1699999999999',
+      batch: b,
+      total: total,
+      headers: headers.slice(),
+      rows: rows.slice(start, start + batchSize)
+    });
+  }
+  return out;
+}
+
+function rebuildCsv(payloads: IntentPayloadLite[]): string {
+  const table: string[][] = [payloads[0].headers.slice()];
+  for (const p of payloads) {
+    table.push(...p.rows);
+  }
+  return CsvService.toCsv(table);
+}
+
+check('intent_payloads_batch_split_and_rebuild', () => {
+  const headers: string[] = ['责任人', '姓名', '工号', '手机', '是否已打', '备注'];
+  const rows: string[][] = [];
+  // 26 行，含 2 对重复工号（v0.5.3：文件内同键行必须全部保留）
+  for (let i = 0; i < 26; i++) {
+    const emp: string = i < 2 ? 'E10001' : ('E10' + String(100 + i));
+    rows.push(['夏起浩', '客户' + (i + 1), emp, '199' + String(10000000 + i), i % 2 === 0 ? '是' : '', '备注' + i]);
+  }
+  const payloads: IntentPayloadLite[] = buildPayloads(headers, rows, 10);
+  assert.strictEqual(payloads.length, 3, '26 行 / 每批 10 → 3 批');
+  assert.strictEqual(payloads[0].rows.length, 10);
+  assert.strictEqual(payloads[1].rows.length, 10);
+  assert.strictEqual(payloads[2].rows.length, 6);
+  assert.strictEqual(payloads[0].batch, 1);
+  assert.strictEqual(payloads[2].batch, 3);
+  assert.strictEqual(payloads[2].total, 3);
+  // CSV 重建 → 解析 → prepare：行数与重复键保留
+  const csv: string = rebuildCsv(payloads);
+  const sheet: ParsedSheet = CsvService.parseCsv(csv);
+  assert.deepStrictEqual(sheet.headers, headers);
+  assert.strictEqual(sheet.rows.length, 26, '重建后 26 行全保留');
+  const prepared = ImportLogic.prepare(sheet);
+  assert.strictEqual(prepared.rows.length, 26);
+  const keys: string[] = prepared.rows.map(r => r.rowKey);
+  assert.strictEqual(keys.filter(k => k === keys[0]).length, 2, '同工号 2 行全保留');
+  // 已打判定：偶数行 是 → calledFromFile true
+  assert.strictEqual(prepared.rows[0].calledFromFile, true);
+  assert.strictEqual(prepared.rows[1].calledFromFile, false);
+  // 合并计划：无本地快照时全部插入
+  const plan = MergeService.computePlan(prepared.rows, []);
+  assert.strictEqual(plan.inserts.length, 26);
+});
+
+check('intent_reimport_preserves_called_state', () => {
+  // 模拟重发（已打状态取"或"保留）：首次导入全部未打 → 本地全打标 → 重发时文件部分已打
+  const headers: string[] = ['姓名', '工号', '手机', '是否已打'];
+  const rows: string[][] = [
+    ['张三', 'E20001', '19900000001', '是'],
+    ['李四', 'E20002', '19900000002', '']
+  ];
+  const payloads: IntentPayloadLite[] = buildPayloads(headers, rows, 10);
+  const first: string = rebuildCsv(payloads);
+  const sheet1: ParsedSheet = CsvService.parseCsv(first);
+  const prepared1 = ImportLogic.prepare(sheet1);
+  // 本地快照：两条都已打（模拟电话已打）
+  const snapshots: LocalRowSnapshot[] = prepared1.rows.map((r, idx) => {
+    return {
+      id: idx + 1, rowKey: r.rowKey, called: true, connected: false, intention: false
+    };
+  });
+  const plan = MergeService.computePlan(prepared1.rows, snapshots);
+  assert.strictEqual(plan.updates.length, 2, '重发命中本地行 → 走更新');
+  // 文件"否"且本地已打 → 合并后仍已打（取"或"）
+  for (const u of plan.updates) {
+    assert.strictEqual(u.calledMerged, true, '已打状态取或保留');
+  }
+});
+
 console.log(`[verify] ALL ${passed} CHECKS PASSED`);

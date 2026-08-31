@@ -19,6 +19,8 @@ export class Constants {
   static readonly CONFIG_EXPORT_SCOPE: string = 'export_scope';
   static readonly CONFIG_CALL_STRIP_COUNTRY: string = 'call_strip_country_code';
   static readonly CONFIG_BUILTIN_LAST_HASH: string = 'builtin_last_hash';
+  /** v0.6 PC 意图直达导入标记：= "行数@时间"；Index.onPageShow 检测后 toast 并清除 */
+  static readonly CONFIG_LAST_INTENT_IMPORT: string = 'last_intent_import';
 
   // 导出范围
   static readonly EXPORT_SCOPE_MINE: string = 'mine';

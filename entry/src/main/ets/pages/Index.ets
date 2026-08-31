@@ -99,6 +99,29 @@ struct Index {
     if (this.pendingMark !== undefined) {
       this.showMarkPrompt();
     }
+    // v0.6 PC 意图直达导入：检测标记 → toast + 刷新 + 清除
+    this.checkIntentImportFlag();
+  }
+
+  /** v0.6：Intent 导入完成后由 EntryAbility 写入 last_intent_import（行数@时间），此处消费 */
+  private checkIntentImportFlag(): void {
+    ConfigDao.get(Constants.CONFIG_LAST_INTENT_IMPORT).then((flag: string): void => {
+      if (flag === '') {
+        return;
+      }
+      const at: number = flag.indexOf('@');
+      const rows: string = at > 0 ? flag.substring(0, at) : flag;
+      ConfigDao.set(Constants.CONFIG_LAST_INTENT_IMPORT, '').then((): void => {
+        this.uiToast('已从内网导入 ' + rows + ' 条');
+        this.vm.reloadAssignee().then((): void => {
+          this.syncAll();
+        });
+      }).catch((e: Error) => {
+        Logger.error(TAG, 'clear intent flag failed: ' + e.message);
+      });
+    }).catch((e: Error) => {
+      Logger.error(TAG, 'read intent flag failed: ' + e.message);
+    });
   }
 
   async initPage(): Promise<void> {
