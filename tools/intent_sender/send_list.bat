@@ -1,52 +1,68 @@
 @echo off
 rem ============================================================
-rem v0.6 PC æ„å›¾ç›´è¾¾å¯¼å…¥ï¼šè§£æ Excel/CSV åå• â†’ hdc åˆ†æ‰¹æ¨é€
-rem ç”¨æ³•ï¼šsend_list.bat [åå•æ–‡ä»¶]    ï¼ˆç¼ºçœå–æœ¬ç›®å½•ä¸‹æœ€æ–° .xlsxï¼‰
-rem ç¯å¢ƒï¼šéœ€å·²è¿æ¥æ‰‹æœºï¼ˆhdc list targets å¯è§ï¼‰+ APP å·²ç”¨ IDE Run å®‰è£…
+rem v0.6 PC ÒâÍ¼Ö±´ïµ¼Èë£º½âÎö Excel/CSV Ãûµ¥ ¡ú hdc ·ÖÅúÍÆËÍ
+rem ÓÃ·¨£ºsend_list.bat [Ãûµ¥ÎÄ¼ş] [Í¸´«²ÎÊı...]
+rem   È±Ê¡ÎÄ¼şÈ¡±¾Ä¿Â¼ÏÂ×îĞÂ .xlsx£»Í¸´«²ÎÊı¼û sender.ts£¨--max-chars N / --batch N / --dry£»--dry ¸ÉÅÜÌø¹ıÉè±¸¼ì²é£©
+rem   Õæ»úÈô±¨²ÎÊı¹ı³¤£ºsend_list.bat Ãûµ¥.xlsx --max-chars 4000
+rem »·¾³£ºĞèÒÑÁ¬½ÓÊÖ»ú£¨hdc list targets ¿É¼û£©+ APP ÒÑÓÃ IDE Run °²×°
 rem ============================================================
 setlocal
 cd /d "%~dp0"
 
-rem ---- å®šä½æ–‡ä»¶ï¼šå‚æ•°ä¼˜å…ˆï¼Œå¦åˆ™åŒç›®å½•æœ€æ–° .xlsx ----
+rem ---- ¶¨Î»ÎÄ¼ş£º²ÎÊıÓÅÏÈ£¬·ñÔòÍ¬Ä¿Â¼×îĞÂ .xlsx ----
 set "FILE=%~1"
 if "%FILE%"=="" (
   for /f "delims=" %%f in ('dir /b /o-d /a-d *.xlsx 2^>nul') do (
     set "FILE=%%f"
     goto :found
   )
-  echo [send_list] æœªæ‰¾åˆ° xlsx æ–‡ä»¶ï¼Œè¯·ä¼ å‚ï¼šsend_list.bat ^<æ–‡ä»¶^>
+  echo [send_list] Î´ÕÒµ½ xlsx ÎÄ¼ş£¬Çë´«²Î£ºsend_list.bat ^<ÎÄ¼ş^>
   exit /b 1
 )
 :found
 if not exist "%FILE%" (
-  echo [send_list] æ–‡ä»¶ä¸å­˜åœ¨: %FILE%
+  echo [send_list] ÎÄ¼ş²»´æÔÚ: %FILE%
   exit /b 1
 )
 
-rem ---- å®šä½ nodeï¼ˆä¼˜å…ˆ PATHï¼Œå…¶æ¬¡ DevEco å†…ç½® nodeï¼‰----
+rem ---- ¶¨Î» node£¨ÓÅÏÈ PATH£¬Æä´Î DevEco ÄÚÖÃ node£©----
 set "NODE=node"
-where node >nul 2>nul || set "NODE=D:\DevEco Studio\tools\node\node.exe"
-if not exist "%NODE%" (
-  echo [send_list] æœªæ‰¾åˆ° nodeï¼Œè¯·å®‰è£… Node.js æˆ–è®¾ç½® PATH
-  exit /b 1
-)
-
-rem ---- å®šä½ hdcï¼ˆä¼˜å…ˆ PATHï¼Œå…¶æ¬¡ DevEco SDK å›ºå®šè·¯å¾„ï¼‰----
-where hdc >nul 2>nul || set "HDC=D:\DevEco Studio\sdk\default\openharmony\toolchains\hdc.exe"
-"%HDC%" list targets >nul 2>nul
+where node >nul 2>nul
 if errorlevel 1 (
-  echo [send_list] hdc ä¸å¯ç”¨æˆ–æœªè¿æ¥è®¾å¤‡ï¼Œè¯·æ£€æŸ¥ USB/æˆæƒ
-  exit /b 1
+  set "NODE=D:\DevEco Studio\tools\node\node.exe"
+  if not exist "%NODE%" (
+    echo [send_list] Î´ÕÒµ½ node£¬Çë°²×° Node.js »òÉèÖÃ PATH
+    exit /b 1
+  )
 )
 
-echo [send_list] æ–‡ä»¶: %FILE%
-echo [send_list] è§£æå¹¶åˆ†æ‰¹æ¨é€ä¸­...
+rem ---- ¶¨Î» hdc£¨ÓÅÏÈ PATH£¬Æä´Î DevEco SDK ¹Ì¶¨Â·¾¶£©----
+set "HDC=hdc"
+where hdc >nul 2>nul
+if errorlevel 1 set "HDC=D:\DevEco Studio\sdk\default\openharmony\toolchains\hdc.exe"
+set "DRY="
+for %%a in (%*) do if "%%a"=="--dry" set "DRY=1"
+if not defined DRY (
+  "%HDC%" list targets >nul 2>nul
+  if errorlevel 1 (
+    echo [send_list] hdc ²»¿ÉÓÃ»òÎ´Á¬½ÓÉè±¸£¬Çë¼ì²é USB/ÊÚÈ¨
+    exit /b 1
+  )
+  "%HDC%" list targets | findstr /l /c:"[Empty]" >nul
+  if not errorlevel 1 (
+    echo [send_list] Î´¼ì²âµ½ÒÑÁ¬½ÓÉè±¸£¨hdc list targets Îª¿Õ£©£¬ÇëÁ¬½ÓÊÖ»ú²¢È·ÈÏ USB µ÷ÊÔÊÚÈ¨
+    exit /b 1
+  )
+)
 
-"%NODE%" --import ..\verify\register.mjs sender.ts "%FILE%"
+echo [send_list] ÎÄ¼ş: %FILE%
+echo [send_list] ½âÎö²¢·ÖÅúÍÆËÍÖĞ...
+
+"%NODE%" --import ../verify/register.mjs sender.ts "%FILE%" %2 %3 %4 %5 %6 %7
 if errorlevel 1 (
-  echo [send_list] å‘é€å¤±è´¥ï¼Œè¯¦è§ä¸Šæ–¹è¾“å‡º
+  echo [send_list] ·¢ËÍÊ§°Ü£¬Ïê¼ûÉÏ·½Êä³ö
   exit /b 1
 )
 
-echo [send_list] å®Œæˆã€‚æ‰‹æœº APP å¯¼å…¥æˆåŠŸåä¸»é¡µä¼šæç¤ºâ€œå·²ä»å†…ç½‘å¯¼å…¥ N æ¡â€
+echo [send_list] Íê³É¡£ÊÖ»ú APP µ¼Èë³É¹¦ºóÖ÷Ò³»áÌáÊ¾¡°ÒÑ´ÓÄÚÍøµ¼Èë N Ìõ¡±
 endlocal

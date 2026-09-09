@@ -1,4 +1,5 @@
 import { common } from '@kit.AbilityKit';
+import type { Want } from '@kit.AbilityKit';
 import { fileIo as fs } from '@kit.CoreFileKit';
 import { util } from '@kit.ArkTS';
 import { CsvService } from './CsvService';
@@ -10,7 +11,7 @@ import { Logger } from '../common/Logger';
 
 const TAG: string = 'IntentImportService';
 
-/** 每批默认行数（PC 端与 APP 端一致；实测单 intent 参数长度上限后由 PC 端微调） */
+/** PC 端分批行数上限（v0.6.1 起 sender 按载荷大小 ≤8000 字符自适应分批，行数仅为上限；本常量仅作文档参照，接收逻辑只认载荷字段） */
 export const INTENT_BATCH_SIZE: number = 50;
 
 /** intent 载荷 JSON（与 PC 端 tools/intent_sender/sender.ts 同构） */
@@ -154,11 +155,21 @@ export class IntentImportService {
     dir: string): Promise<void> {
     const file: string = dir + '/batch_' + payload.batch + '.json';
     const bytes: Uint8Array = IntentImportService.encodeUtf8(JSON.stringify(payload));
-    const fd: number = fs.openSync(file, fs.OpenMode.CREATE | fs.OpenMode.READ_WRITE | fs.OpenMode.TRUNC);
+    let f: fs.File | undefined = undefined;
     try {
-      fs.writeSync(fd, bytes.buffer);
+      f = fs.openSync(file, fs.OpenMode.CREATE | fs.OpenMode.READ_WRITE | fs.OpenMode.TRUNC);
+      fs.writeSync(f.fd, bytes.buffer);
+    } catch (e) {
+      Logger.error(TAG, 'saveBatch failed: ' + (e as Error).message);
+      throw new Error('批次落盘失败：' + (e as Error).message);
     } finally {
-      fs.closeSync(fd);
+      if (f !== undefined) {
+        try {
+          fs.closeSync(f);
+        } catch (e) {
+          // 关闭失败不影响主流程
+        }
+      }
     }
   }
 
@@ -200,16 +211,26 @@ export class IntentImportService {
     const allRows: string[][] = [];
     for (let b = 1; b <= total; b++) {
       const file: string = dir + '/batch_' + b + '.json';
-      const fd: number = fs.openSync(file, fs.OpenMode.READ_ONLY);
+      let f: fs.File | undefined = undefined;
       let text: string = '';
       try {
-        const stat: fs.Stat = fs.statSync(fd);
+        f = fs.openSync(file, fs.OpenMode.READ_ONLY);
+        const stat: fs.Stat = fs.statSync(f.fd);
         const buf: ArrayBuffer = new ArrayBuffer(stat.size);
-        fs.readSync(fd, buf);
+        fs.readSync(f.fd, buf);
         const u8: Uint8Array = new Uint8Array(buf);
         text = util.TextDecoder.create('utf-8', { fatal: false }).decodeToString(u8) ?? '';
+      } catch (e) {
+        Logger.error(TAG, 'read batch failed: ' + (e as Error).message);
+        throw new Error('读取批次失败：' + (e as Error).message);
       } finally {
-        fs.closeSync(fd);
+        if (f !== undefined) {
+          try {
+            fs.closeSync(f);
+          } catch (e) {
+            // 关闭失败不影响主流程
+          }
+        }
       }
       const p: IntentPayload = JSON.parse(text) as IntentPayload;
       allRows.push(...p.rows);

@@ -5,7 +5,12 @@
  * 载荷格式与 APP 端 IntentImportService.IntentPayload 同构。
  *
  * 运行（由 send_list.bat 调用）：
- *   node --import ../verify/register.mjs sender.ts <文件> [--batch 50] [--dry]
+ *   node --import ../verify/register.mjs sender.ts <文件> [--batch 50] [--max-chars 8000] [--dry]
+ *
+ * 分批策略（v0.6.1）：按载荷大小自适应分批——逐行累加，精确编码后超过
+ *   --max-chars（默认 8000 字符）即切批，同时受 --batch 行数上限约束。
+ *   宽表（如 20 列真实名单）与窄表（6 列样例）单行字节差异可达 4 倍，
+ *   固定行数分批会产生 23KB+ 的超长 intent 参数，故改为大小优先。
  *
  * 环境：HDC 环境变量可覆盖 hdc 路径；默认 DevEco SDK 固定路径。
  */
@@ -36,14 +41,18 @@ function fail(msg: string): never {
   process.exit(1);
 }
 
-function parseArgs(): { file: string; batch: number; dry: boolean } {
+function parseArgs(): { file: string; batch: number; maxChars: number; dry: boolean } {
   const argv = process.argv.slice(2);
   let file = '';
   let batch = 50;
+  let maxChars = 8000;
   let dry = false;
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === '--batch' && i + 1 < argv.length) {
       batch = parseInt(argv[i + 1], 10);
+      i++;
+    } else if (argv[i] === '--max-chars' && i + 1 < argv.length) {
+      maxChars = parseInt(argv[i + 1], 10);
       i++;
     } else if (argv[i] === '--dry') {
       dry = true;
@@ -57,7 +66,10 @@ function parseArgs(): { file: string; batch: number; dry: boolean } {
   if (!fs.existsSync(file)) {
     fail('文件不存在: ' + file);
   }
-  return { file, batch, dry };
+  if (batch < 1 || maxChars < 512) {
+    fail('--batch 须 >= 1 且 --max-chars 须 >= 512');
+  }
+  return { file, batch, maxChars, dry };
 }
 
 /** 读取并解析表格（xlsx / csv，与 APP 同一套解析代码） */
@@ -95,8 +107,57 @@ function runHdc(args: string[]): { code: number; out: string } {
   return { code: r.status ?? -1, out: ((r.stdout ?? '') + (r.stderr ?? '')).trim() };
 }
 
+/** 编码某批载荷（total 用上限占位，长度估算偏保守） */
+function encodeBatch(transferId: string, headers: string[], batchNo: number,
+  total: number, rows: string[][]): string {
+  const payload: RowPayload = {
+    action: ACTION,
+    transferId,
+    batch: batchNo,
+    total,
+    headers: headers.slice(),
+    rows
+  };
+  return base64Of(JSON.stringify(payload));
+}
+
+/**
+ * 按载荷大小自适应分批：逐行累加，精确编码长度超过 maxChars 即切批
+ * （行数同时受 batchCap 约束）；单行超长的行单独成批并告警。
+ */
+function splitBatches(transferId: string, headers: string[], rows: string[][],
+  batchCap: number, maxChars: number): string[][][] {
+  const chunks: string[][][] = [];
+  let cur: string[][] = [];
+  for (const row of rows) {
+    cur.push(row);
+    if (cur.length >= batchCap ||
+      encodeBatch(transferId, headers, 1, 99999, cur).length > maxChars) {
+      if (cur.length > 1 &&
+        encodeBatch(transferId, headers, 1, 99999, cur).length > maxChars) {
+        // 超长由最后一行触发：弹出该行，单独成批或留给下一批
+        cur.pop();
+        chunks.push(cur);
+        cur = [row];
+        if (encodeBatch(transferId, headers, 1, 99999, cur).length > maxChars) {
+          console.warn(`[sender] 警告：单行载荷超 ${maxChars} 字符，单独成批发送`);
+          chunks.push(cur);
+          cur = [];
+        }
+      } else {
+        chunks.push(cur);
+        cur = [];
+      }
+    }
+  }
+  if (cur.length > 0) {
+    chunks.push(cur);
+  }
+  return chunks;
+}
+
 function main(): void {
-  const { file, batch, dry } = parseArgs();
+  const { file, batch, maxChars, dry } = parseArgs();
   const sheet = parseSheet(file);
   if (sheet.headers.length === 0 || sheet.rows.length === 0) {
     fail('表格为空或仅含表头');
@@ -105,22 +166,14 @@ function main(): void {
   console.log(`[sender] headers: ${sheet.headers.join(' / ')}`);
 
   const transferId = String(Date.now());
-  const totalBatches = Math.ceil(sheet.rows.length / batch);
-  console.log(`[sender] transferId=${transferId}, batchSize=${batch}, totalBatches=${totalBatches}`);
+  const chunks: string[][][] = splitBatches(transferId, sheet.headers, sheet.rows, batch, maxChars);
+  const totalBatches = chunks.length;
+  console.log(`[sender] transferId=${transferId}, rowCap=${batch}, maxChars=${maxChars}, totalBatches=${totalBatches}`);
 
   let okCount = 0;
   for (let b = 1; b <= totalBatches; b++) {
-    const start = (b - 1) * batch;
-    const rows = sheet.rows.slice(start, start + batch);
-    const payload: RowPayload = {
-      action: ACTION,
-      transferId,
-      batch: b,
-      total: totalBatches,
-      headers: sheet.headers.slice(),
-      rows
-    };
-    const encoded = base64Of(JSON.stringify(payload));
+    const rows = chunks[b - 1];
+    const encoded = encodeBatch(transferId, sheet.headers, b, totalBatches, rows);
     if (dry) {
       console.log(`[sender][dry] batch ${b}/${totalBatches}: ${rows.length} 行, payload ${encoded.length} 字符`);
       okCount++;
@@ -128,7 +181,8 @@ function main(): void {
     }
     const r = runHdc(['shell', 'aa', 'start', '-b', BUNDLE, '-a', ABILITY,
       '--ps', PARAM_KEY, encoded]);
-    const ok = /successfully/i.test(r.out);
+    // 严格匹配 aa 成功输出（"start ability successfully."），避免 usage/帮助文本误匹配
+    const ok = /^start ability successfully/im.test(r.out);
     if (ok) {
       okCount++;
       console.log(`[sender] batch ${b}/${totalBatches}: OK (${rows.length} 行)`);
