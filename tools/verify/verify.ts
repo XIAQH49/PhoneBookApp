@@ -73,6 +73,16 @@ check('unclosed_bracket_keeps_rest', () => {
   const r = NumberParseService.parse('+86-19999999999（国内');
   assert.ok(r.length === 1 && r[0] === '+8619999999999');
 });
+check('excel_text_marker_apostrophe', () => {
+  assert.deepStrictEqual(NumberParseService.parse("'+86-18080663355"), ['+8618080663355']);
+});
+check('apostrophe_multi_number_keeps_all', () => {
+  assert.deepStrictEqual(NumberParseService.parse("'+86-18502518580(优先)/+86-15850507479"),
+    ['+8618502518580', '+8615850507479']);
+});
+check('apostrophe_only_segment_skipped', () => {
+  assert.deepStrictEqual(NumberParseService.parse("'/19999999999"), ['+8619999999999']);
+});
 
 console.log('[verify] MergeService (FR-2 / R-1)');
 function row(empNo: string, name: string, phone: string, called: boolean, no: number): MergeRowData {

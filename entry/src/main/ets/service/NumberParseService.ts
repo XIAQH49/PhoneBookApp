@@ -7,7 +7,7 @@
  * 规则摘要：
  *  S1 剥离括号注释：（）()【】[]《》及其内容（支持嵌套）；未闭合括号视为注释直至行尾（仅保留括号前内容）
  *  S2 拆分：/ ／ 、 ， , ; ； \n \r \t 为分隔符（空格不作为分隔符）
- *  S3 段清洗：去首尾空白，移除段内空格与 - －（保留 + 与数字）
+ *  S3 段清洗：去首尾空白，剥离开头文本标记引号（Excel `'` 前缀等），移除段内空格与 - －（保留 + 与数字）
  *  S4 前缀规范化：+86 / 86 / 0086 → 统一 +86；11 位 1[3-9] 手机号 → +86 前缀
  *  S5 校验：^\+?\d{7,15}$；按序去重
  *  S6 输出：有效号码数组（空数组表示全部无效，UI 走复制兜底）
@@ -16,6 +16,8 @@ export class NumberParseService {
   /** 打开/关闭括号字符集（下标一一对应，支持嵌套深度） */
   private static readonly OPEN_BRACKETS: string = '（(【[《';
   private static readonly CLOSE_BRACKETS: string = '）)】]》';
+  /** 单元格开头的文本标记引号（Excel 强制文本的 ' 前缀；兼容弯引号），非号码内容 */
+  private static readonly LEADING_QUOTES: string = "'\u2018\u2019";
 
   /**
    * 解析单元格文本，返回规范化号码数组（无有效号码时为空数组）。
@@ -30,6 +32,10 @@ export class NumberParseService {
     const result: string[] = [];
     for (const rawSeg of rawSegs) {
       let seg: string = rawSeg.trim();
+      if (seg === '') {
+        continue;
+      }
+      seg = NumberParseService.stripLeadingQuotes(seg);
       if (seg === '') {
         continue;
       }
@@ -51,6 +57,15 @@ export class NumberParseService {
       return '';
     }
     return Math.floor(n).toString();
+  }
+
+  /** S3：剥离开头的文本标记引号（Excel `'` 前缀等），不影响号码本身 */
+  private static stripLeadingQuotes(seg: string): string {
+    let i: number = 0;
+    while (i < seg.length && NumberParseService.LEADING_QUOTES.indexOf(seg.charAt(i)) >= 0) {
+      i++;
+    }
+    return seg.substring(i);
   }
 
   /** S1：剥离括号及其中的注释内容（含嵌套）；未闭合括号时保留剩余原文 */

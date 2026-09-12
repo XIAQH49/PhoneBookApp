@@ -47,5 +47,21 @@ export default function numberParseTest() {
       expect(r.length).assertEqual(1);
       expect(r[0]).assertEqual('+8619999999999');
     });
+    it('excel_text_marker_apostrophe', 0, () => {
+      const r: string[] = NumberParseService.parse("'+86-18080663355");
+      expect(r.length).assertEqual(1);
+      expect(r[0]).assertEqual('+8618080663355');
+    });
+    it('apostrophe_multi_number_keeps_all', 0, () => {
+      const r: string[] = NumberParseService.parse("'+86-18502518580(优先)/+86-15850507479");
+      expect(r.length).assertEqual(2);
+      expect(r[0]).assertEqual('+8618502518580');
+      expect(r[1]).assertEqual('+8615850507479');
+    });
+    it('apostrophe_only_segment_skipped', 0, () => {
+      const r: string[] = NumberParseService.parse("'/19999999999");
+      expect(r.length).assertEqual(1);
+      expect(r[0]).assertEqual('+8619999999999');
+    });
   });
 }
