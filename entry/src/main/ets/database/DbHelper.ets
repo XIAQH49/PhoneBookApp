@@ -2,6 +2,7 @@ import { relationalStore } from '@kit.ArkData';
 import { common } from '@kit.AbilityKit';
 import { Constants } from '../common/Constants';
 import { Logger } from '../common/Logger';
+import { NumberParseService } from '../service/NumberParseService';
 
 const TAG: string = 'DbHelper';
 
@@ -123,6 +124,8 @@ export class DbHelper {
       await DbHelper.repairDuplicateRows(store);
       // v0.5.4 二次修复：恢复被测试/误导入批次遮蔽的真实数据（标记守卫，仅执行一次）
       await DbHelper.restoreRemovedBatch(store);
+      // 数据修复：存量行按当前解析规则重算 phone_numbers（Excel ' 前缀导致拨号失效；标记守卫，仅执行一次）
+      await DbHelper.repairPhoneNumbers(store);
       DbHelper.store = store;
       Logger.info(TAG, 'database ready');
     } catch (e) {
@@ -375,6 +378,102 @@ export class DbHelper {
     } catch (e) {
       // 恢复失败不阻塞初始化：标记未写入则下次启动再试
       Logger.error(TAG, 'restoreRemovedBatch failed: ' + (e as Error).message);
+    }
+  }
+
+  /** 号码重算修复标记键 */
+  private static readonly REPAIR_PHONE_NUMBERS_FLAG_KEY: string = 'repair_phone_numbers_v1';
+
+  /**
+   * 数据修复：按当前解析规则重算存量行的 phone_numbers（派生字段，不动 phone_raw/行键/状态）。
+   * 场景：老版本导入的 phone_raw 带 Excel 文本标记 `'` 前缀，解析为空导致点拨号只提示复制；
+   * 标记守卫：仅执行一次；失败不阻塞初始化（标记未写入则下次启动重试）。
+   */
+  static async repairPhoneNumbers(store: relationalStore.RdbStore): Promise<void> {
+    try {
+      let done: boolean = false;
+      let flagRs: relationalStore.ResultSet | undefined = undefined;
+      try {
+        flagRs = await store.querySql(
+          'SELECT value FROM app_config WHERE key = ?', [DbHelper.REPAIR_PHONE_NUMBERS_FLAG_KEY]);
+        if (flagRs.goToNextRow()) {
+          done = flagRs.getString(flagRs.getColumnIndex('value')) === '1';
+        }
+      } finally {
+        if (flagRs !== undefined) {
+          try {
+            flagRs.close();
+          } catch (e) {
+            // 忽略关闭失败
+          }
+        }
+      }
+      if (done) {
+        return;
+      }
+      const ids: number[] = [];
+      const raws: string[] = [];
+      const olds: string[] = [];
+      let rs: relationalStore.ResultSet | undefined = undefined;
+      try {
+        rs = await store.querySql(
+          'SELECT id, phone_raw, phone_numbers FROM call_list WHERE phone_raw <> ?', ['']);
+        while (rs.goToNextRow()) {
+          ids.push(rs.getLong(rs.getColumnIndex('id')));
+          raws.push(rs.getString(rs.getColumnIndex('phone_raw')));
+          olds.push(rs.getString(rs.getColumnIndex('phone_numbers')));
+        }
+      } finally {
+        if (rs !== undefined) {
+          try {
+            rs.close();
+          } catch (e) {
+            // 忽略关闭失败
+          }
+        }
+      }
+      // 注意：初始化阶段 DbHelper.store 尚未赋值，不能走 runInTransaction，直接开事务
+      try {
+        store.beginTransaction();
+      } catch (e) {
+        Logger.error(TAG, 'repairPhoneNumbers beginTransaction failed: ' + (e as Error).message);
+        throw e as Error;
+      }
+      let changed: number = 0;
+      try {
+        for (let i: number = 0; i < ids.length; i++) {
+          const parsed: string = JSON.stringify(NumberParseService.parse(raws[i]));
+          if (parsed === olds[i]) {
+            continue;
+          }
+          await store.executeSql(
+            'UPDATE call_list SET phone_numbers = ?, updated_at = ? WHERE id = ?',
+            [parsed, Date.now(), ids[i]]);
+          changed++;
+        }
+        await store.executeSql(
+          'INSERT OR REPLACE INTO app_config(key, value) VALUES(?, ?)',
+          [DbHelper.REPAIR_PHONE_NUMBERS_FLAG_KEY, '1']);
+      } catch (e) {
+        try {
+          store.rollBack();
+        } catch (rb) {
+          // 忽略回滚失败
+        }
+        throw e as Error;
+      }
+      try {
+        store.commit();
+      } catch (e) {
+        Logger.error(TAG, 'repairPhoneNumbers commit failed: ' + (e as Error).message);
+        throw e as Error;
+      }
+      if (changed > 0) {
+        Logger.info(TAG, 'repaired phone_numbers: changed=' + changed);
+      }
+    } catch (e) {
+      // 修复失败不阻塞初始化：标记未写入则下次启动重试
+      Logger.error(TAG, 'repairPhoneNumbers failed: ' + (e as Error).message);
     }
   }
 
